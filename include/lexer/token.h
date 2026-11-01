@@ -1,0 +1,143 @@
+// SPDX-License-Identifier: MIT
+#pragma once
+
+#include <string>
+#include <variant>
+#include "core/utils.h" // Для ::Elica::Core::Position
+
+namespace Elica::Lexer {
+
+using TokenType = int;
+
+// Universal token types
+enum class CommonToken : TokenType {
+    END_OF_FILE = 0,
+    
+    IDENTIFIER,
+    INT_LITERAL,
+    FLT_LITERAL,
+    STR_LITERAL,
+    F_STR_LITERAL,          // f"..." или f'...'
+    MULTILINE_STR_LITERAL,  // """..."""
+    F_MULTILINE_STR_LITERAL,// f"""..."""
+    CHAR_LITERAL,
+
+    PLUS,         // +
+    MINUS,        // -
+    STAR,         // *
+    SLASH,        // /
+    PERCENT,      // %
+    ASSIGN,       // =
+    NOT,          // !
+    LESS,         // <
+    GREATER,      // >
+    AMPERSAND,    // &
+    HASH,         // #
+    AT,           // @
+    QUESTION,     // ?
+    COLON,        // :
+    SEMICOLON,    // ;
+    COMMA,        // ,
+    DOT,          // .
+
+    EQUAL,        // ==
+    NOT_EQUAL,    // !=
+    LESS_EQUAL,   // <=
+    GREATER_EQUAL,// >=
+    PLUS_ASSIGN,  // +=
+    MINUS_ASSIGN, // -=
+    MUL_ASSIGN,   // *=
+    DIV_ASSIGN,   // /=
+    MOD_ASSIGN,   // %=
+    ARROW,        // ->
+
+    LPAREN,       // (
+    RPAREN,       // )
+    LBRACKET,     // [
+    RBRACKET,     // ]
+    LBRACE,       // {
+    RBRACE        // }
+};
+
+// Ely
+enum class ElyToken : TokenType {
+    // Types
+    KW_BYTE, KW_UBYTE, KW_INT, KW_UINT, KW_SHORT, KW_USHORT, KW_MORE, KW_UMORE,
+    KW_FLT, KW_DOUBLE, KW_NOISED,
+    KW_STR, KW_ATOM, KW_CHAR,
+    KW_BOOL, KW_VOID, KW_SENTINEL, KW_ANY,
+
+    // Def
+    KW_FUNC, KW_CLASS, KW_STRUCT, KW_CCODE, KW_CPPCODE,
+
+    // Modifiers
+    KW_PUBLIC, KW_PRIVATE, KW_MINE, KW_STATIC, 
+    KW_COPA, KW_CONST, KW_NOCOPA, KW_SEALED, KW_ABSTRACT, 
+    KW_WAIT, KW_UNWAIT, KW_STACK, KW_HEAP,
+
+    // Flow
+    KW_IF, KW_ELSE, KW_WHILE, KW_FOR, KW_RETURN, 
+    KW_TRY, KW_RAISE, KW_EXCEPT, KW_BREAK, KW_CONTINUE,
+
+    // Logic & moduling
+    KW_USING, KW_TRUE, KW_FALSE,
+    KW_IS, KW_IN, KW_LAMBDA, KW_NOT
+};
+
+// C
+enum class CToken : TokenType {
+    KW_AUTO, KW_BREAK, KW_CASE, KW_CHAR, KW_CONST, KW_CONTINUE, KW_DEFAULT, KW_DO,
+    KW_DOUBLE, KW_ELSE, KW_ENUM, KW_EXTERN, KW_FLOAT, KW_FOR, KW_GOTO, KW_IF,
+    KW_INLINE, KW_INT, KW_LONG, KW_REGISTER, KW_RESTRICT, KW_RETURN, KW_SHORT,
+    KW_SIGNED, KW_SIZEOF, KW_STATIC, KW_STRUCT, KW_SWITCH, KW_TYPEDEF, KW_UNION,
+    KW_UNSIGNED, KW_VOID, KW_VOLATILE, KW_WHILE,
+    KW_ALIGNAS, KW_ALIGNOF, KW_ATOMIC, KW_BOOL, KW_COMPLEX, KW_GENERIC,
+    KW_IMAGINARY, KW_NORETURN, KW_STATIC_ASSERT, KW_THREAD_LOCAL,
+    KW_FALSE, KW_TRUE
+};
+
+// C++
+enum class CppToken : TokenType {
+    KW_ALIGNAS, KW_ALIGNOF, KW_AND, KW_AND_EQ, KW_ASM, KW_AUTO,
+    KW_BITAND, KW_BITOR, KW_BOOL, KW_BREAK,
+    KW_CASE, KW_CATCH, KW_CHAR, KW_CHAR8_T, KW_CHAR16_T, KW_CHAR32_T,
+    KW_CLASS, KW_COMPL, KW_CONCEPT, KW_CONST, KW_CONSTEVAL, KW_CONSTEXPR,
+    KW_CONSTINIT, KW_CONST_CAST, KW_CONTINUE,
+    KW_CO_AWAIT, KW_CO_RETURN, KW_CO_YIELD,
+    KW_DECLTYPE, KW_DEFAULT, KW_DELETE, KW_DO, KW_DOUBLE, KW_DYNAMIC_CAST,
+    KW_ELSE, KW_ENUM, KW_EXPLICIT, KW_EXPORT, KW_EXTERN,
+    KW_FALSE, KW_FLOAT, KW_FOR, KW_FRIEND,
+    KW_GOTO,
+    KW_IF, KW_INLINE, KW_INT,
+    KW_LONG,
+    KW_MUTABLE,
+    KW_NAMESPACE, KW_NEW, KW_NOEXCEPT, KW_NOT, KW_NOT_EQ, KW_NULLPTR,
+    KW_OPERATOR, KW_OR, KW_OR_EQ,
+    KW_PRIVATE, KW_PROTECTED, KW_PUBLIC,
+    KW_REGISTER, KW_REINTERPRET_CAST, KW_REQUIRES, KW_RETURN,
+    KW_SHORT, KW_SIGNED, KW_SIZEOF, KW_STATIC, KW_STATIC_ASSERT, KW_STATIC_CAST,
+    KW_STRUCT, KW_SWITCH, KW_SYNCHRONIZED,
+    KW_TEMPLATE, KW_THIS, KW_THREAD_LOCAL, KW_THROW, KW_TRUE, KW_TRY,
+    KW_TYPEDEF, KW_TYPEID, KW_TYPENAME,
+    KW_UNION, KW_UNSIGNED, KW_USING,
+    KW_VIRTUAL, KW_VOID, KW_VOLATILE,
+    KW_WCHAR_T, KW_WHILE,
+    KW_XOR, KW_XOR_EQ
+};
+
+enum LexerLanguage {
+    ELY, CPP, C
+};
+
+using TokenVariant = variant<CommonToken, ElyToken, CToken, CppToken>;
+
+struct Token {
+    TokenVariant type;
+    std::string lexeme;
+    ::Elica::Core::Position position;
+
+    Token(TokenVariant t, std::string lex, ::Elica::Core::Position pos)
+        : type(t), lexeme(std::move(lex)), position(pos) {}
+};
+
+}
