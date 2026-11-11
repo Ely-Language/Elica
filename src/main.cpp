@@ -1,21 +1,28 @@
-﻿#include <iostream>
+﻿// Elica!
+
+#include <iostream>
 #include <filesystem>
 #include <vector>
 
+// Elica
 #include "core/utils.h"
 #include "core/collector.h"
+
 #include "lexer/lexer.h"
 #include "lexer/token.h"
+
 #include "features/preprocessor.h"
 #include "features/macro.h"
+#include "features/jumper.h"
 
 using namespace std;
-namespace fs = filesystem;
+
+namespace fs = std::filesystem;
 
 #define DEBUG
 
 #define VERSION "27.1 devstream"
-#define BUILD "unnumered"
+#define BUILD "3"
 
 int help() {
     cout << "Elica compiler help:\n"
@@ -23,7 +30,7 @@ int help() {
          << "       elica project [root path] [project name] (-v/--version) [version of project]\n"
          << " - Activate project virtual environment:\n"
          << "       elica env [manager or project folder path]\n"
-         << " - Fast compilation & run:\n"
+         << " - Fast compilation  &run:\n"
          << "       elica run [manager or project folder path]\n"
          << " - Release compilation (build):\n"
          << "       elica build [manager or project folder path]\n"
@@ -56,7 +63,7 @@ int version() {
     return 0;
 }
 
-int checkFile(string& pathToFile) {
+int checkFile(string &pathToFile) {
     fs::path filePath = pathToFile;
     if (!fs::exists(pathToFile)) {
         cerr << "[Elica][ERROR]: File nor found!" << filePath << "\n";
@@ -80,37 +87,74 @@ int checkFile(string& pathToFile) {
     return 0;
 }
 
-int dev(string& pathToFile) {
+int dev(string &pathToFile) {
     fs::path projectPath = pathToFile;
-    Elica::Core::Project* project = new Elica::Core::Project(projectPath);
-    
+    auto project = new Elica::Core::Project(projectPath);
+
     // manager.json
-    project->loadConfig();
-    Elica::Core::ProjectConfig config = project->getConfig();
-
-    cout << config.name << '\n';
-    cout << config.version << '\n';
-    cout << config.entry << '\n';
-
-    // entry point
-    string entry = project->getRawFile(config.entry);
-    cout << entry << "\n";
-
-    // Lexing & Preprocess
-    Elica::Features::Preprocess::Preprocessor* preprocessor = new Elica::Features::Preprocess::Preprocessor(project); 
-    vector<Elica::Lexer::Token> tokens = preprocessor->process(config.entry, Elica::Lexer::LexerLanguage::ELY);
-
-    for (size_t i = 0; i < tokens.size(); i++) {
-        auto token = tokens[i];
-        cout << "[Elica][Token][" << token.position.line
-             << ":" << token.position.column
-             << "]:" << token.type.index()
-             << " = " << token.lexeme << "\n"; 
+    if (!project->loadConfig()) {
+        cerr << "[Elica][ERROR] Failed to load manager.json\n";
+        delete project;
+        return 1;
     }
 
-	delete project;
-	delete preprocessor;
+    Elica::Core::ProjectConfig config = project->getConfig();
+    cout << "Project: " << config.name << " v" << config.version << "\n";
+    cout << "Entry:   " << config.entry << "\n\n";
 
+    // Phase 0: graph walk — collect reachable files (ely/elyc/c/cpp/h/hpp)
+    Elica::Features::Preprocess::Jumping::Jumper jumper(*project);
+    jumper.jumpAll();
+
+    if (project->traceErrors() != 0) {
+        cerr << "[Elica][ERROR] Jump phase failed\n";
+        delete project;
+        return 1;
+    }
+
+    const auto &elyFiles = project->getElySourceFiles();
+    cout << "Reachable Ely files: " << elyFiles.size() << "\n";
+    for (const auto &f : elyFiles) {
+        cout << "  " << fs::relative(f, config.entry.parent_path()) << "\n";
+    }
+    cout << "\n";
+
+    // Phase 1: collect all macros across the whole project (cross-file macros)
+    auto preprocessor = new Elica::Features::Preprocess::Preprocessor(project);
+    preprocessor->collectAll(elyFiles);
+
+    // cout << "Macros collected: #=" << project->compilerMacros.size()
+    //      << " @=" << project->textMacros.size()
+    //      << " &=" << project->structMacros.size() << "\n\n";
+
+    // Phase 2: preprocess + lex each file
+    for (const auto &file : elyFiles) {
+        const auto rel = fs::relative(file, config.entry.parent_path());
+        cout << "── " << rel << " ──\n";
+
+        auto tokens = preprocessor->preprocess(file,
+                                               Elica::Lexer::LexerLanguage::ELY);
+
+        for (const auto &token : tokens) {
+            if (std::holds_alternative<Elica::Lexer::CommonToken>(token.type) &&
+                std::get<Elica::Lexer::CommonToken>(token.type) ==
+                    Elica::Lexer::CommonToken::END_OF_FILE) {
+                continue;
+            }
+            cout << "  [" << token.position.line
+                 << ":" << token.position.column
+                 << "] variant=" << token.type.index()
+                 << "  " << token.lexeme << "\n";
+        }
+        cout << "\n";
+    }
+
+    if (project->traceErrors() != 0) {
+        cerr << "[Elica][ERROR] Preprocess/lex phase had errors\n";
+    }
+
+    delete preprocessor;
+    delete project;
     return 0;
 }
 
@@ -118,12 +162,12 @@ int main(int argc, char* argv[]) {
     vector<string> args(argv, argv + argc);
 
     // version
-    if (args.size() >= 2 && (args[1] == "-v" || args[1] == "--version")) {
+    if (args.size() >= 2  && (args[1] == "-v" || args[1] == "--version")) {
         return version();
     }
 
     // help
-    if (args.size() == 1 || (args.size() >= 2 && (args[1] == "-h" || args[1] == "--help"))) {
+    if (args.size() == 1 || (args.size() >= 2  && (args[1] == "-h" || args[1] == "--help"))) {
         return help();
     }
 
@@ -137,7 +181,7 @@ int main(int argc, char* argv[]) {
             string versionStr = "";
 
             for (size_t i = 2; i < args.size(); i++) {
-                if (args[i] == "-v" && i + 1 < args.size()) {
+                if (args[i] == "-v"  && i + 1 < args.size()) {
                     versionStr = args[++i];
                 } else if (rootPath.empty()) {
                     rootPath = args[i];
@@ -146,7 +190,7 @@ int main(int argc, char* argv[]) {
                 }
             }
 
-            if (!rootPath.empty() && !projectName.empty()) {
+            if (!rootPath.empty()  && !projectName.empty()) {
                 if (!versionStr.empty()) {
                     return project(rootPath, projectName, versionStr);
                 } else {

@@ -4,7 +4,7 @@
 #include <iostream>
 
 using namespace std;
-namespace fs = filesystem;
+namespace fs = ::std::filesystem;
 
 namespace Elica::Lexer {
 
@@ -42,14 +42,14 @@ void Lexer::skipWhitespaceAndComments() {
         char c = peek();
         if (c == ' ' || c == '\r' || c == '\t' || c == '\n') {
             advance();
-        } else if (c == '/' && pos + 1 < source.size() && source[pos + 1] == '/') {
+        } else if (c == '/'  && pos + 1 < source.size()  && source[pos + 1] == '/') {
             // Однострочный комментарий //
-            while (!isAtEnd() && peek() != '\n') advance();
-        } else if (c == '/' && pos + 1 < source.size() && source[pos + 1] == '*') {
+            while (!isAtEnd()  && peek() != '\n') advance();
+        } else if (c == '/'  && pos + 1 < source.size()  && source[pos + 1] == '*') {
             // Многострочный комментарий /* ... */
             advance(); advance();
             while (!isAtEnd()) {
-                if (peek() == '*' && pos + 1 < source.size() && source[pos + 1] == '/') {
+                if (peek() == '*'  && pos + 1 < source.size()  && source[pos + 1] == '/') {
                     advance(); advance();
                     break;
                 }
@@ -62,7 +62,7 @@ void Lexer::skipWhitespaceAndComments() {
 }
 
 // Ely
-const unordered_map<string, TokenType>& Lexer::getElyKeywords() {
+const unordered_map<string, TokenType> &Lexer::getElyKeywords() {
     static const unordered_map<string, TokenType> keywords = {
         // Types
         {"byte", static_cast<TokenType>(ElyToken::KW_BYTE)},
@@ -88,8 +88,8 @@ const unordered_map<string, TokenType>& Lexer::getElyKeywords() {
         {"func", static_cast<TokenType>(ElyToken::KW_FUNC)},
         {"class", static_cast<TokenType>(ElyToken::KW_CLASS)},
         {"struct", static_cast<TokenType>(ElyToken::KW_STRUCT)},
-        {"ccode", static_cast<TokenType>(ElyToken::KW_CCODE)},
-        {"cppcode", static_cast<TokenType>(ElyToken::KW_CPPCODE)},
+        {"cCode", static_cast<TokenType>(ElyToken::KW_cCode)},
+        {"cppCode", static_cast<TokenType>(ElyToken::KW_cppCode)},
 
         // Modifiers
         {"public", static_cast<TokenType>(ElyToken::KW_PUBLIC)},
@@ -118,20 +118,21 @@ const unordered_map<string, TokenType>& Lexer::getElyKeywords() {
         {"break", static_cast<TokenType>(ElyToken::KW_BREAK)},
         {"continue", static_cast<TokenType>(ElyToken::KW_CONTINUE)},
 
-        // Logic & moduling
+        // Logic  &moduling
         {"using", static_cast<TokenType>(ElyToken::KW_USING)},
         {"true", static_cast<TokenType>(ElyToken::KW_TRUE)},
         {"false", static_cast<TokenType>(ElyToken::KW_FALSE)},
         {"is", static_cast<TokenType>(ElyToken::KW_IS)},
         {"in", static_cast<TokenType>(ElyToken::KW_IN)},
         {"lambda", static_cast<TokenType>(ElyToken::KW_LAMBDA)},
-        {"not", static_cast<TokenType>(ElyToken::KW_NOT)}
+        {"not", static_cast<TokenType>(ElyToken::KW_NOT)},
+        {"this",  static_cast<TokenType>(ElyToken::KW_THIS)}
     };
     return keywords;
 }
 
 // C
-const unordered_map<string, TokenType>& Lexer::getCKeywords() {
+const unordered_map<string, TokenType> &Lexer::getCKeywords() {
     static const unordered_map<string, TokenType> keywords = {
         {"auto", static_cast<TokenType>(CToken::KW_AUTO)},
         {"break", static_cast<TokenType>(CToken::KW_BREAK)},
@@ -184,7 +185,7 @@ const unordered_map<string, TokenType>& Lexer::getCKeywords() {
 }
 
 // C++
-const unordered_map<string, TokenType>& Lexer::getCppKeywords() {
+const unordered_map<string, TokenType> &Lexer::getCppKeywords() {
     static const unordered_map<string, TokenType> keywords = {
         {"alignas", static_cast<TokenType>(CppToken::KW_ALIGNAS)},
         {"alignof", static_cast<TokenType>(CppToken::KW_ALIGNOF)},
@@ -307,20 +308,20 @@ Token Lexer::scanNumber() {
                 advance();
             }
         } else {
-            while ((peek() >= '0' && peek() <= '7') || peek() == '\'') {
+            while ((peek() >= '0'  && peek() <= '7') || peek() == '\'') {
                 advance();
             }
         }
     }
 
     // standard
-    if (!isHex && !isBin) {
+    if (!isHex  && !isBin) {
         while (isdigit(peek()) || peek() == '\'') {
             advance();
         }
 
         // .
-        if (peek() == '.' && (isdigit(source[pos + 1]) || source[pos + 1] == 'e' || source[pos + 1] == 'E')) {
+        if (peek() == '.'  && (isdigit(source[pos + 1]) || source[pos + 1] == 'e' || source[pos + 1] == 'E')) {
             isFloat = true;
             advance(); // съедаем '.'
             while (isdigit(peek()) || peek() == '\'') {
@@ -375,7 +376,7 @@ Token Lexer::scanIdentifierOrKeyword() {
 
     string lexeme = source.substr(startPosIdx, pos - startPosIdx);
 
-    const unordered_map<string, TokenType>& keywords = 
+    const unordered_map<string, TokenType> &keywords = 
         (language == LexerLanguage::ELY) ? getElyKeywords() :
         (language == LexerLanguage::C) ? getCKeywords() : getCppKeywords();
 
@@ -406,7 +407,7 @@ Token Lexer::scanString() {
     }
 
     bool isMultiline = false;
-    if (peek() == '"' && pos + 2 < source.size() && source[pos + 1] == '"' && source[pos + 2] == '"') {
+    if (peek() == '"'  && pos + 2 < source.size()  && source[pos + 1] == '"'  && source[pos + 2] == '"') {
         isMultiline = true;
         advance(); advance(); advance();
     } else {
@@ -418,7 +419,7 @@ Token Lexer::scanString() {
 
     if (isMultiline) {
         while (!isAtEnd()) {
-            if (peek() == '"' && pos + 2 < source.size() && source[pos + 1] == '"' && source[pos + 2] == '"') {
+            if (peek() == '"'  && pos + 2 < source.size()  && source[pos + 1] == '"'  && source[pos + 2] == '"') {
                 break;
             }
             advance();
@@ -426,7 +427,7 @@ Token Lexer::scanString() {
         lexeme = source.substr(contentStart, pos - contentStart);
         advance(); advance(); advance();
     } else {
-        while (!isAtEnd() && peek() != '"') {
+        while (!isAtEnd()  && peek() != '"') {
             if (peek() == '\\') {
                 advance();
             }
@@ -437,7 +438,7 @@ Token Lexer::scanString() {
     }
 
     CommonToken tokenType;
-    if (isFString && isMultiline) tokenType = CommonToken::F_MULTILINE_STR_LITERAL;
+    if (isFString  && isMultiline) tokenType = CommonToken::F_MULTILINE_STR_LITERAL;
     else if (isFString) tokenType = CommonToken::F_STR_LITERAL;
     else if (isMultiline) tokenType = CommonToken::MULTILINE_STR_LITERAL;
     else tokenType = CommonToken::STR_LITERAL;
@@ -455,8 +456,8 @@ vector<Token> Lexer::tokenize() {
         char c = peek();
         ::Elica::Core::Position currentPos(line, column);
 
-        // str & fstr
-        if (c == '"' || ((c == 'f' || c == 'F') && pos + 1 < source.size() && source[pos + 1] == '"')) {
+        // str  &fstr
+        if (c == '"' || ((c == 'f' || c == 'F')  && pos + 1 < source.size()  && source[pos + 1] == '"')) {
             tokens.push_back(scanString());
             continue;
         }
@@ -467,13 +468,13 @@ vector<Token> Lexer::tokenize() {
             continue;
         }
 
-        // ids & kws
+        // ids  &kws
         if (isalpha(c) || c == '_') {
             tokens.push_back(scanIdentifierOrKeyword());
             continue;
         }
 
-        // symbols & ops
+        // symbols  &ops
         advance();
         switch (c) {
             case '+': 

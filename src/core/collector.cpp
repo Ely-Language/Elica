@@ -1,5 +1,7 @@
 #include "core/collector.h"
 
+using namespace std;
+
 namespace Elica::Core {
 
 Project::Project(fs::path root_dir) : rootDir(move(root_dir)) {
@@ -39,21 +41,21 @@ bool Project::loadConfig() {
     }
 }
 
-fs::path Project::locateModule(const string& moduleName) const {
+fs::path Project::locateModule(const string &moduleName) const {
     // modules/
     fs::path local_module_dir = this->rootDir / "modules" / moduleName;
-    if (fs::exists(local_module_dir) && fs::is_directory(local_module_dir)) {
+    if (fs::exists(local_module_dir)  && fs::is_directory(local_module_dir)) {
         return local_module_dir;
     }
 
     // fallback
     fs::path parent_dir = this->rootDir.parent_path();
-    if (fs::exists(parent_dir) && fs::is_directory(parent_dir)) {
-        for (const auto& entry : fs::directory_iterator(parent_dir)) {
-            if (entry.is_directory() && entry.path() != rootDir) {
+    if (fs::exists(parent_dir)  && fs::is_directory(parent_dir)) {
+        for (const auto &entry : fs::directory_iterator(parent_dir)) {
+            if (entry.is_directory()  && entry.path() != rootDir) {
                 // Проверяем наличие папки modules/<module_name> внутри соседнего проекта
                 fs::path candidate = entry.path() / "modules" / moduleName;
-                if (fs::exists(candidate) && fs::is_directory(candidate)) {
+                if (fs::exists(candidate)  && fs::is_directory(candidate)) {
                     return candidate;
                 }
                 // Или если сам соседний проект и есть искомый модуль (совпадает имя папки)
@@ -67,7 +69,7 @@ fs::path Project::locateModule(const string& moduleName) const {
     return {};
 }
 
-bool Project::addLib(const string& moduleName, ModuleInfo& outInfo) {
+bool Project::addLib(const string &moduleName, ModuleInfo &outInfo) {
     fs::path module_dir = this->locateModule(moduleName);
     
     if (module_dir.empty()) {
@@ -89,28 +91,28 @@ bool Project::addLib(const string& moduleName, ModuleInfo& outInfo) {
         outInfo.name = j.value("name", moduleName);
 
         // elyc
-        if (j.contains("sources") && j["sources"].is_array()) {
-            for (const auto& src : j["sources"]) {
+        if (j.contains("sources")  && j["sources"].is_array()) {
+            for (const auto &src : j["sources"]) {
                 outInfo.elycFiles.push_back(module_dir / src.get<string>());
             }
         }
 
         // headers
-        if (j.contains("headers") && j["headers"].is_array()) {
-            for (const auto& hdr : j["headers"]) {
+        if (j.contains("headers")  && j["headers"].is_array()) {
+            for (const auto &hdr : j["headers"]) {
                 outInfo.headerFiles.push_back(module_dir / hdr.get<string>());
             }
         }
 
         // precompiled
-        if (j.contains("libraries") && j["libraries"].is_array()) {
-            for (const auto& lib : j["libraries"]) {
+        if (j.contains("libraries")  && j["libraries"].is_array()) {
+            for (const auto &lib : j["libraries"]) {
                 outInfo.libraryFiles.push_back(module_dir / lib.get<string>());
             }
         }
 
         return true;
-    } catch (const exception& e) {
+    } catch (const exception &e) {
         cerr << "Error parsing module.json for '" << moduleName << "': " << e.what() << "\n";
         return false;
     }
@@ -151,7 +153,7 @@ bool Project::collectSources() {
     }
 
     try {
-        for (const auto& entry : fs::recursive_directory_iterator(rootDir)) {
+        for (const auto &entry : fs::recursive_directory_iterator(rootDir)) {
             if (!entry.is_regular_file()) continue;
 
             fs::path path = entry.path();
@@ -174,7 +176,7 @@ bool Project::collectSources() {
         }
 
         return true;
-    } catch (const exception& e) {
+    } catch (const exception &e) {
         cerr << "[Elica][ERROR] Failed to collect sources: " << e.what() << "\n";
         return false;
     }
@@ -190,7 +192,7 @@ int Project::traceErrors() {
         cout << "[Elica][ERROR][" << error.path
              << "][line: " << error.position.line
              << ", column: " << error.position.column
-             << "]: " << error.message;
+             << "]: " << error.message << "\n";
     }
     return 1;
 }

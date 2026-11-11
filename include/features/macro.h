@@ -11,166 +11,129 @@
 #include "core/collector.h"
 #include "core/utils.h"
 
-using namespace std;
-
 namespace Elica::Features::Preprocess {
 
 namespace Macro {
 
 class Macro {
 protected:
-    string name;
+    std::string name;
     ::Elica::Core::Position position;
 public:
-    Macro(string name, ::Elica::Core::Position pos) 
-        : name(move(name)), position(pos) {}
+    Macro(std::string name, ::Elica::Core::Position pos)
+        : name(std::move(name)), position(pos) {}
     virtual ~Macro() = default;
-    string getName() const { return this->name; }
+    std::string getName() const { return this->name; }
     ::Elica::Core::Position getPosition() const { return this->position; }
 };
-// #
+
+// # ---------------------------------------------------------------
 class CompilerMacro : public Macro {
 private:
     int value;
 public:
-    CompilerMacro(
-        string macroName,
-        int macroValue,
-        size_t line,
-        size_t column
-    ) : Macro(move(macroName), ::Elica::Core::Position(line, column)), 
-        value(macroValue) {}
-    
+    CompilerMacro(std::string macroName, int macroValue, size_t line, size_t column)
+        : Macro(std::move(macroName), ::Elica::Core::Position(line, column)),
+          value(macroValue) {}
     int getValue() const { return this->value; }
 };
-// @
+
+// @ ---------------------------------------------------------------
 class TextMacro : public Macro {
 private:
-    string body;
-    vector<string> args;
+    std::string body;
+    std::vector<std::string> args;
     bool isFunctionLike;
+    bool isOperator = false;
+    std::string opString;
+
 public:
-    TextMacro(
-        string macroName, 
-        string bodyText,
-        size_t line,
-        size_t column
-    ) : Macro(move(macroName), ::Elica::Core::Position(line, column)),
-        body(bodyText), isFunctionLike(false) {}
+    TextMacro(std::string macroName, std::string bodyText, size_t line, size_t column)
+        : Macro(move(macroName), ::Elica::Core::Position(line, column)),
+          body(bodyText), isFunctionLike(false) {}
 
-    TextMacro(
-        string macroName, 
-        string bodyText,
-        vector<string> argsList,
-        size_t line,
-        size_t column
-    ) : Macro(move(macroName), ::Elica::Core::Position(line, column)),
-        body(bodyText), isFunctionLike(true), args(argsList) {}
+    TextMacro(std::string macroName, std::string bodyText, std::vector<std::string> argsList,
+              size_t line, size_t column)
+        : Macro(move(macroName), ::Elica::Core::Position(line, column)),
+          body(bodyText), isFunctionLike(true), args(move(argsList)) {}
 
-    const string& getBody() const { return this->body; }
-    const vector<string>& getArgs() const { return this->args; }
+    const std::string &getBody() const { return this->body; }
+    const std::vector<std::string> &getArgs() const { return this->args; }
     bool isFunctionlike() const { return this->isFunctionLike; }
+
+    bool isOperatorMacro() const { return this->isOperator; }
+    const std::string &getOpString() const { return this->opString; }
+    void setOperator(std::string op) { isOperator = true; opString = std::move(op); }
 };
 
-// &
+//  &---------------------------------------------------------------
 class StructMacro : public Macro {
 private:
-    vector<string> placeholders;
-    string targetType;
+    std::vector<std::string> placeholders;
+    std::string targetType;
 
-    string preQuotes;
-    string beginQuotes;
-    string endQuotes;
-    string postQuotes;
+    std::string preQuotes, beginQuotes, endQuotes, postQuotes;
 
-    string declaredName;        
-    string typeOrParentClass;   
+    std::string declaredName;
+    std::string typeOrParentClass;
 
-    unordered_map<string, string> fields;                       
-    unordered_map<string, string> waited;                       
-    unordered_map<string, string> unwaited;                     
-    unordered_map<string, unordered_map<string, string>> methods; 
-
-    unordered_map<string, string> args;                         
+    // B1: ordered, чтобы сохранить порядок объявления для F3OPL
+    ::Elica::Core::OrderedMap<std::string> fields;
+    ::Elica::Core::OrderedMap<std::string> waited;
+    ::Elica::Core::OrderedMap<std::string> unwaited;
+    ::Elica::Core::OrderedMap<::Elica::Core::OrderedMap<std::string>> methods;
+    ::Elica::Core::OrderedMap<std::string> args;
 
 public:
-    StructMacro(string macroName, ::Elica::Core::Position pos)
-        : Macro(move(macroName), pos) {}
+    StructMacro(std::string macroName, ::Elica::Core::Position pos)
+        : Macro(std::move(macroName), pos) {}
 
-    const vector<string>& getPlaceholders() const { return placeholders; }
-    const string& getTargetType() const { return targetType; }
+    const std::vector<std::string> &getPlaceholders() const { return placeholders; }
+    const std::string &getTargetType()     const { return targetType;     }
+    const std::string &getPreQuotes()      const { return preQuotes;      }
+    const std::string &getBeginQuotes()    const { return beginQuotes;    }
+    const std::string &getEndQuotes()      const { return endQuotes;      }
+    const std::string &getPostQuotes()     const { return postQuotes;     }
+    const std::string &getDeclaredName()   const { return declaredName;   }
+    const std::string &getTypeOrParentClass() const { return typeOrParentClass; }
 
-    const string& getPreQuotes() const { return preQuotes; }
-    const string& getBeginQuotes() const { return beginQuotes; }
-    const string& getEndQuotes() const { return endQuotes; }
-    const string& getPostQuotes() const { return postQuotes; }
-    const string& getDeclaredName() const { return declaredName; }
-    const string& getTypeOrParentClass() const { return typeOrParentClass; }
+    const ::Elica::Core::OrderedMap<std::string> &getFields()    const { return fields;    }
+    const ::Elica::Core::OrderedMap<std::string> &getWaited()    const { return waited;    }
+    const ::Elica::Core::OrderedMap<std::string> &getUnwaited()  const { return unwaited;  }
+    const ::Elica::Core::OrderedMap<::Elica::Core::OrderedMap<std::string>> &getMethods() const { return methods; }
+    const ::Elica::Core::OrderedMap<std::string> &getArgs()      const { return args;      }
 
-    const unordered_map<string, string>& getFields() const { return fields; }
-    const unordered_map<string, string>& getWaited() const { return waited; }
-    const unordered_map<string, string>& getUnwaited() const { return unwaited; }
-    const unordered_map<string, unordered_map<string, string>>& getMethods() const { return methods; }
-    const unordered_map<string, string>& getArgs() const { return args; }
-    
-    void addPlaceholder(string placeholder) { 
-        placeholders.push_back(move(placeholder)); 
+    void addPlaceholder(std::string placeholder) { placeholders.push_back(std::move(placeholder)); }
+    void setTargetType(std::string type)         { targetType = std::move(type); }
+    void setQuotes(std::string pre, std::string begin, std::string end, std::string post) {
+        preQuotes = std::move(pre); beginQuotes = std::move(begin);
+        endQuotes = std::move(end); postQuotes  = std::move(post);
     }
+    void setPreQuotes(std::string q)   { preQuotes   = std::move(q); }
+    void setBeginQuotes(std::string q) { beginQuotes = std::move(q); }
+    void setEndQuotes(std::string q)   { endQuotes   = std::move(q); }
+    void setPostQuotes(std::string q)  { postQuotes  = std::move(q); }
 
-    void setTargetType(string type) {
-        targetType = move(type);
-    }
-    
-    void setQuotes(string pre, string begin, string end, string post) {
-        preQuotes = move(pre);
-        beginQuotes = move(begin);
-        endQuotes = move(end);
-        postQuotes = move(post);
-    }
+    void setDeclaredName(std::string n)       { declaredName = std::move(n); }
+    void setTypeOrParentClass(std::string v)  { typeOrParentClass = std::move(v); }
 
-    void setPreQuotes(string quotes) { preQuotes = move(quotes); }
-    void setBeginQuotes(string quotes) { beginQuotes = move(quotes); }
-    void setEndQuotes(string quotes) { endQuotes = move(quotes); }
-    void setPostQuotes(string quotes) { postQuotes = move(quotes); }
-
-    void setDeclaredName(string name) { declaredName = move(name); }
-    void setTypeOrParentClass(string val) { typeOrParentClass = move(val); }
-
-    void addField(string name, string type) { fields[move(name)] = move(type); }
-    void addWaitedField(string name, string type) { waited[move(name)] = move(type); }
-    void addUnwaitedField(string name, string type) { unwaited[move(name)] = move(type); }
-    void addMethod(string methodName, unordered_map<string, string> methodArgs) {
-        methods[move(methodName)] = move(methodArgs);
-    }
-    void addArg(string name, string type) { args[move(name)] = move(type); }
+    void addField(std::string n, std::string t)          { fields[std::move(n)]    = std::move(t); }
+    void addWaitedField(std::string n, std::string t)    { waited[std::move(n)]    = std::move(t); }
+    void addUnwaitedField(std::string n, std::string t)  { unwaited[std::move(n)]  = std::move(t); }
+    void addMethod(std::string m, ::Elica::Core::OrderedMap<std::string> a) { methods[std::move(m)] = std::move(a); }
+    void addArg(std::string n, std::string t)            { args[std::move(n)]      = std::move(t); }
 };
 
 class MacroParser {
 private:
-    static string applyHygiene(
-        const string& body, 
-        const vector<string>& preserverNames
-    );
-
-    static shared_ptr<CompilerMacro> parseCompilerMacro(
-        const string& source, 
-        ::Elica::Core::Position pos
-    );
-    
-    static shared_ptr<TextMacro> parseTextMacro(
-        const string& source, 
-        ::Elica::Core::Position pos
-    );
-
-    static shared_ptr<StructMacro> parseStructMacro(
-        const string& source, 
-        ::Elica::Core::Position pos
-    );
+    static std::string applyHygiene(const std::string &body, const std::vector<std::string> &preserverNames);
+    static std::shared_ptr<CompilerMacro> parseCompilerMacro(const std::string &source, ::Elica::Core::Position pos);
+    static std::shared_ptr<TextMacro>     parseTextMacro   (const std::string &source, ::Elica::Core::Position pos);
+    static std::shared_ptr<StructMacro>   parseStructMacro (const std::string &source, ::Elica::Core::Position pos);
 
 public:
-    static shared_ptr<Macro> parse(const string& source, ::Elica::Core::Position pos);
+    static std::shared_ptr<Macro> parse(const std::string &source, ::Elica::Core::Position pos);
 };
 
 }
-
 }

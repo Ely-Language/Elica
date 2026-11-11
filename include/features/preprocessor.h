@@ -11,37 +11,48 @@
 #include "lexer/token.h"
 #include "features/macro.h"
 
-using namespace std;
-namespace fs = filesystem;
 
-namespace Elica::Core {
-    class Project;
-}
+namespace fs = std::filesystem;
+
+namespace Elica::Core { class Project; }
 
 namespace Elica::Features::Preprocess {
 
 class Preprocessor {
 private:
     Elica::Core::Project* project;
-    
-    Elica::Lexer::Lexer lexer;
+    Elica::Lexer::Lexer   lexer;
 
-    // founds macros from file
-    void collectMacros(string& source, const fs::path& filePath);
+    bool collected = false;
 
-    // recursive macro expansion
-    string expandTextMacros(const string& source, const fs::path file);
+    // Find them
+    void collectMacros(const std::string &source, const fs::path &filePath);
 
-    // keep code good
-    void replaceWithWhitespace(string& code, size_t start, size_t length);
+    // Vanish them
+    void stripMacroDefinitions(std::string &source);
+
+    // Paste them
+    std::string expandTextMacros(const std::string &source, const fs::path &file);
+
+    void replaceWithWhitespace(std::string &code, size_t start, size_t length);
 
 public:
     explicit Preprocessor(Elica::Core::Project* proj);
-
     ~Preprocessor() = default;
 
-    // process the code
-    vector<Elica::Lexer::Token> process(const filesystem::path& filePath, Elica::Lexer::LexerLanguage lang);
+    // Collect macros from all the sources
+    void collectAll(const std::vector<fs::path> &files);
+
+    // Onefile
+    void collectFile(const fs::path &file, Elica::Lexer::LexerLanguage lang);
+
+    // Preprocess
+    std::vector<Elica::Lexer::Token> preprocess(const fs::path &file,
+                                           Elica::Lexer::LexerLanguage lang);
+
+    // Backward-compat: collectAll({file}) + preprocess(file).
+    std::vector<Elica::Lexer::Token> process(const fs::path &file,
+                                        Elica::Lexer::LexerLanguage lang);
 };
 
 }

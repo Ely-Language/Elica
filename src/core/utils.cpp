@@ -1,5 +1,7 @@
 #include "core/utils.h"
 
+using namespace std;
+
 bool Elica::Core::createProject(string rootPath, const string &projectName, const string &version) {
     fs::path root = rootPath;
     if (!fs::exists(root / projectName)) {
@@ -41,7 +43,7 @@ bool Elica::Core::createProject(string rootPath, const string &projectName, cons
         // TODO: environment
 
         return true;
-    } catch (const exception& e) {
+    } catch (const exception &e) {
         cerr << "[Elica][ERROR] Failed to create project structure: " << e.what() << "\n";
         return false;
     }

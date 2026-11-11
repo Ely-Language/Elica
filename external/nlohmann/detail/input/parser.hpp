@@ -49,7 +49,7 @@ enum class parse_event_t : std::uint8_t
 
 template<typename BasicJsonType>
 using parser_callback_t =
-    std::function<bool(int /*depth*/, parse_event_t /*event*/, BasicJsonType& /*parsed*/)>;
+    std::function<bool(int /*depth*/, parse_event_t /*event*/, BasicJsonType &/*parsed*/)>;
 
 /*!
 @brief syntax analysis
@@ -68,7 +68,7 @@ class parser
 
   public:
     /// a parser reading from an input adapter
-    explicit parser(InputAdapterType&& adapter,
+    explicit parser(InputAdapterType && adapter,
                     parser_callback_t<BasicJsonType> cb = nullptr,
                     const bool allow_exceptions_ = true,
                     const bool skip_comments = false)
@@ -90,7 +90,7 @@ class parser
     @throw parse_error.102 if to_unicode fails or surrogate error
     @throw parse_error.103 if to_unicode fails
     */
-    void parse(const bool strict, BasicJsonType& result)
+    void parse(const bool strict, BasicJsonType &result)
     {
         if (callback)
         {
@@ -98,7 +98,7 @@ class parser
             sax_parse_internal(&sdp);
 
             // in strict mode, input must be completely read
-            if (strict && (get_token() != token_type::end_of_input))
+            if (strict  && (get_token() != token_type::end_of_input))
             {
                 sdp.parse_error(m_lexer.get_position(),
                                 m_lexer.get_token_string(),
@@ -126,7 +126,7 @@ class parser
             sax_parse_internal(&sdp);
 
             // in strict mode, input must be completely read
-            if (strict && (get_token() != token_type::end_of_input))
+            if (strict  && (get_token() != token_type::end_of_input))
             {
                 sdp.parse_error(m_lexer.get_position(),
                                 m_lexer.get_token_string(),
@@ -164,7 +164,7 @@ class parser
         const bool result = sax_parse_internal(sax);
 
         // strict mode: next byte must be EOF
-        if (result && strict && (get_token() != token_type::end_of_input))
+        if (result  && strict  && (get_token() != token_type::end_of_input))
         {
             return sax->parse_error(m_lexer.get_position(),
                                     m_lexer.get_token_string(),
@@ -475,7 +475,7 @@ class parser
         return last_token = m_lexer.scan();
     }
 
-    std::string exception_message(const token_type expected, const std::string& context)
+    std::string exception_message(const token_type expected, const std::string &context)
     {
         std::string error_msg = "syntax error ";
 

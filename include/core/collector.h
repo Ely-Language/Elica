@@ -15,8 +15,8 @@
 
 #include "features/macro.h"
 
-using namespace std;
-namespace fs = filesystem;
+
+namespace fs = std::filesystem;
 
 namespace Elica::Features {
 namespace Preprocess {
@@ -34,17 +34,17 @@ namespace Elica::Core {
 
 // Configuration
 struct ProjectConfig {
-    string name;
-    string version;
+    std::string name;
+    std::string version;
     fs::path entry;
-    unordered_map<string, int> settings;
+    std::unordered_map<std::string, int> settings;
 };
 
 struct ModuleInfo {
-    string name;
-    vector<fs::path> elycFiles; 
-    vector<fs::path> headerFiles;
-    vector<fs::path> libraryFiles;
+    std::string name;
+    std::vector<fs::path> elycFiles; 
+    std::vector<fs::path> headerFiles;
+    std::vector<fs::path> libraryFiles;
 };
     
 enum FileType : uint8_t {
@@ -57,27 +57,27 @@ private:
     fs::path rootDir;
     ProjectConfig config;
 
-    vector<Error> errors;
+    std::vector<Error> errors;
 
     // ely, elyc
-    vector<fs::path> elySourceFiles;
+    std::vector<fs::path> elySourceFiles;
     // native sources (c, cpp)
-    vector<fs::path> nativeSourceFiles;
+    std::vector<fs::path> nativeSourceFiles;
     // native headers (h, hpp)
-    vector<fs::path> nativeHeaderFiles;
+    std::vector<fs::path> nativeHeaderFiles;
     // precompiled libs (.dll, .lib, .a, .so etc)
-    vector<fs::path> externalLibs;
+    std::vector<fs::path> externalLibs;
 
     // macrosystem
     
     // #
-    vector<::Elica::Features::Preprocess::Macro::CompilerMacro> compilerMacros;
+    std::vector<::Elica::Features::Preprocess::Macro::CompilerMacro> compilerMacros;
     // @
-    vector<::Elica::Features::Preprocess::Macro::TextMacro> textMacros;
+    std::vector<::Elica::Features::Preprocess::Macro::TextMacro> textMacros;
     // &
-    vector<::Elica::Features::Preprocess::Macro::StructMacro> structMacros;
+    std::vector<::Elica::Features::Preprocess::Macro::StructMacro> structMacros;
 
-    fs::path locateModule(const string& moduleName) const;
+    fs::path locateModule(const std::string &moduleName) const;
 
     friend class Elica::Features::Preprocess::Preprocessor;
 public:
@@ -89,17 +89,17 @@ public:
 
     bool collectSources();
 
-    bool addLib(const string& moduleName, ModuleInfo& outInfo);
+    bool addLib(const std::string &moduleName, ModuleInfo &outInfo);
 
-    string getRawFile(fs::path filePath);
+    std::string getRawFile(fs::path filePath);
 
-    const ProjectConfig& getConfig() const { return this->config; }
-    const fs::path& getRootDir() const { return this->rootDir; }
+    const ProjectConfig &getConfig() const { return this->config; }
+    const fs::path &getRootDir() const { return this->rootDir; }
 
-    const std::vector<fs::path>& getElySourceFiles() const { return this->elySourceFiles; }
-    const std::vector<fs::path>& getNativeSourceFiles() const { return this->nativeSourceFiles; }
-    const std::vector<fs::path>& getNativeHeaderFiles() const { return this->nativeHeaderFiles; }
-    const std::vector<fs::path>& getExternalLibraries() const { return this->externalLibs; }
+    const std::vector<fs::path> &getElySourceFiles() const { return this->elySourceFiles; }
+    const std::vector<fs::path> &getNativeSourceFiles() const { return this->nativeSourceFiles; }
+    const std::vector<fs::path> &getNativeHeaderFiles() const { return this->nativeHeaderFiles; }
+    const std::vector<fs::path> &getExternalLibraries() const { return this->externalLibs; }
 
     void pushError(Error e) { this->errors.push_back(e); }
 

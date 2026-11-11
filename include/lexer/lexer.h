@@ -8,13 +8,13 @@
 #include "lexer/token.h"
 #include "core/utils.h"
 
-using namespace std;
+
 
 namespace Elica::Lexer {
 
 class Lexer {
 private:
-    string source;
+    std::string source;
     size_t pos = 0;
     size_t line = 1;
     size_t column = 1;
@@ -23,7 +23,7 @@ private:
     // get current symbol
     char peek() const;
 
-    // get current symbol & move to next
+    // get current symbol  &move to next
     char advance();
 
     // is end of file
@@ -37,19 +37,19 @@ private:
     Token scanIdentifierOrKeyword();
     Token scanString();
 
-    const unordered_map<string, TokenType>& getElyKeywords();
-    const unordered_map<string, TokenType>& getCKeywords();
-    const unordered_map<string, TokenType>& getCppKeywords();
+    const std::unordered_map<std::string, TokenType> &getElyKeywords();
+    const std::unordered_map<std::string, TokenType> &getCKeywords();
+    const std::unordered_map<std::string, TokenType> &getCppKeywords();
 
 public:
-    Lexer(string src, LexerLanguage lang);
+    Lexer(std::string src, LexerLanguage lang);
     // resets Lexer for next file
-    inline void setfull(string src, LexerLanguage lang) {
+    inline void setfull(std::string src, LexerLanguage lang) {
         this->source=src; this->language=lang;
         this->pos=0; this->line=1; this->column=1;
     }
     // tokenizes the current file
-    vector<Token> tokenize();
+    std::vector<Token> tokenize();
 };
 
 }

@@ -3,85 +3,55 @@
 
 #include <string>
 #include <variant>
-#include "core/utils.h" // Для ::Elica::Core::Position
+#include "core/utils.h"
 
 namespace Elica::Lexer {
 
 using TokenType = int;
 
-// Universal token types
 enum class CommonToken : TokenType {
     END_OF_FILE = 0,
-    
+
     IDENTIFIER,
     INT_LITERAL,
     FLT_LITERAL,
     STR_LITERAL,
-    F_STR_LITERAL,          // f"..." или f'...'
-    MULTILINE_STR_LITERAL,  // """..."""
-    F_MULTILINE_STR_LITERAL,// f"""..."""
+    F_STR_LITERAL,
+    MULTILINE_STR_LITERAL,
+    F_MULTILINE_STR_LITERAL,
     CHAR_LITERAL,
 
-    PLUS,         // +
-    MINUS,        // -
-    STAR,         // *
-    SLASH,        // /
-    PERCENT,      // %
-    ASSIGN,       // =
-    NOT,          // !
-    LESS,         // <
-    GREATER,      // >
-    AMPERSAND,    // &
-    HASH,         // #
-    AT,           // @
-    QUESTION,     // ?
-    COLON,        // :
-    SEMICOLON,    // ;
-    COMMA,        // ,
-    DOT,          // .
+    PLUS, MINUS, STAR, SLASH, PERCENT,
+    ASSIGN, NOT, LESS, GREATER,
+    AMPERSAND, HASH, AT, QUESTION, COLON, SEMICOLON, 
+    COMMA, DOT,
 
-    EQUAL,        // ==
-    NOT_EQUAL,    // !=
-    LESS_EQUAL,   // <=
-    GREATER_EQUAL,// >=
-    PLUS_ASSIGN,  // +=
-    MINUS_ASSIGN, // -=
-    MUL_ASSIGN,   // *=
-    DIV_ASSIGN,   // /=
-    MOD_ASSIGN,   // %=
-    ARROW,        // ->
+    EQUAL, NOT_EQUAL, LESS_EQUAL, GREATER_EQUAL,
+    PLUS_ASSIGN, MINUS_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, MOD_ASSIGN,
+    ARROW,
 
-    LPAREN,       // (
-    RPAREN,       // )
-    LBRACKET,     // [
-    RBRACKET,     // ]
-    LBRACE,       // {
-    RBRACE        // }
+    LPAREN, RPAREN, LBRACKET, RBRACKET, LBRACE, RBRACE
 };
 
-// Ely
 enum class ElyToken : TokenType {
-    // Types
     KW_BYTE, KW_UBYTE, KW_INT, KW_UINT, KW_SHORT, KW_USHORT, KW_MORE, KW_UMORE,
     KW_FLT, KW_DOUBLE, KW_NOISED,
     KW_STR, KW_ATOM, KW_CHAR,
     KW_BOOL, KW_VOID, KW_SENTINEL, KW_ANY,
 
-    // Def
-    KW_FUNC, KW_CLASS, KW_STRUCT, KW_CCODE, KW_CPPCODE,
+    KW_FUNC, KW_CLASS, KW_STRUCT, KW_cCode, KW_cppCode,
 
-    // Modifiers
-    KW_PUBLIC, KW_PRIVATE, KW_MINE, KW_STATIC, 
-    KW_COPA, KW_CONST, KW_NOCOPA, KW_SEALED, KW_ABSTRACT, 
+    KW_PUBLIC, KW_PRIVATE, KW_MINE, KW_STATIC,
+    KW_COPA, KW_CONST, KW_NOCOPA, KW_SEALED, KW_ABSTRACT,
     KW_WAIT, KW_UNWAIT, KW_STACK, KW_HEAP,
 
-    // Flow
-    KW_IF, KW_ELSE, KW_WHILE, KW_FOR, KW_RETURN, 
+    KW_IF, KW_ELSE, KW_WHILE, KW_FOR, KW_RETURN,
     KW_TRY, KW_RAISE, KW_EXCEPT, KW_BREAK, KW_CONTINUE,
 
-    // Logic & moduling
     KW_USING, KW_TRUE, KW_FALSE,
-    KW_IS, KW_IN, KW_LAMBDA, KW_NOT
+    KW_IS, KW_IN, KW_LAMBDA, KW_NOT,
+
+    KW_THIS
 };
 
 // C
@@ -129,7 +99,7 @@ enum LexerLanguage {
     ELY, CPP, C
 };
 
-using TokenVariant = variant<CommonToken, ElyToken, CToken, CppToken>;
+using TokenVariant = std::variant<CommonToken, ElyToken, CToken, CppToken>;
 
 struct Token {
     TokenVariant type;

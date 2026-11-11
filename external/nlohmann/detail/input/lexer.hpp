@@ -121,7 +121,7 @@ class lexer : public lexer_base<BasicJsonType>
   public:
     using token_type = typename lexer_base<BasicJsonType>::token_type;
 
-    explicit lexer(InputAdapterType&& adapter, bool ignore_comments_ = false) noexcept
+    explicit lexer(InputAdapterType && adapter, bool ignore_comments_ = false) noexcept
         : ia(std::move(adapter))
         , ignore_comments(ignore_comments_)
         , decimal_point_char(static_cast<char_int_type>(get_decimal_point()))
@@ -130,8 +130,8 @@ class lexer : public lexer_base<BasicJsonType>
     // delete because of pointer members
     lexer(const lexer&) = delete;
     lexer(lexer&&) = default; // NOLINT(hicpp-noexcept-move,performance-noexcept-move-constructor)
-    lexer& operator=(lexer&) = delete;
-    lexer& operator=(lexer&&) = default; // NOLINT(hicpp-noexcept-move,performance-noexcept-move-constructor)
+    lexer &operator=(lexer&) = delete;
+    lexer &operator=(lexer&&) = default; // NOLINT(hicpp-noexcept-move,performance-noexcept-move-constructor)
     ~lexer() = default;
 
   private:
@@ -178,15 +178,15 @@ class lexer : public lexer_base<BasicJsonType>
         {
             get();
 
-            if (current >= '0' && current <= '9')
+            if (current >= '0'  && current <= '9')
             {
                 codepoint += static_cast<int>((static_cast<unsigned int>(current) - 0x30u) << factor);
             }
-            else if (current >= 'A' && current <= 'F')
+            else if (current >= 'A'  && current <= 'F')
             {
                 codepoint += static_cast<int>((static_cast<unsigned int>(current) - 0x37u) << factor);
             }
-            else if (current >= 'a' && current <= 'f')
+            else if (current >= 'a'  && current <= 'f')
             {
                 codepoint += static_cast<int>((static_cast<unsigned int>(current) - 0x57u) << factor);
             }
@@ -196,7 +196,7 @@ class lexer : public lexer_base<BasicJsonType>
             }
         }
 
-        JSON_ASSERT(0x0000 <= codepoint && codepoint <= 0xFFFF);
+        JSON_ASSERT(0x0000 <= codepoint  && codepoint <= 0xFFFF);
         return codepoint;
     }
 
@@ -223,7 +223,7 @@ class lexer : public lexer_base<BasicJsonType>
         for (auto range = ranges.begin(); range != ranges.end(); ++range)
         {
             get();
-            if (JSON_HEDLEY_LIKELY(*range <= current && current <= *(++range))) // NOLINT(bugprone-inc-dec-in-conditions)
+            if (JSON_HEDLEY_LIKELY(*range <= current  && current <= *(++range))) // NOLINT(bugprone-inc-dec-in-conditions)
             {
                 add(current);
             }
@@ -329,10 +329,10 @@ class lexer : public lexer_base<BasicJsonType>
                             }
 
                             // check if code point is a high surrogate
-                            if (0xD800 <= codepoint1 && codepoint1 <= 0xDBFF)
+                            if (0xD800 <= codepoint1  && codepoint1 <= 0xDBFF)
                             {
                                 // expect next \uxxxx entry
-                                if (JSON_HEDLEY_LIKELY(get() == '\\' && get() == 'u'))
+                                if (JSON_HEDLEY_LIKELY(get() == '\\'  && get() == 'u'))
                                 {
                                     const int codepoint2 = get_codepoint();
 
@@ -343,7 +343,7 @@ class lexer : public lexer_base<BasicJsonType>
                                     }
 
                                     // check if codepoint2 is a low surrogate
-                                    if (JSON_HEDLEY_LIKELY(0xDC00 <= codepoint2 && codepoint2 <= 0xDFFF))
+                                    if (JSON_HEDLEY_LIKELY(0xDC00 <= codepoint2  && codepoint2 <= 0xDFFF))
                                     {
                                         // overwrite codepoint
                                         codepoint = static_cast<int>(
@@ -370,7 +370,7 @@ class lexer : public lexer_base<BasicJsonType>
                             }
                             else
                             {
-                                if (JSON_HEDLEY_UNLIKELY(0xDC00 <= codepoint1 && codepoint1 <= 0xDFFF))
+                                if (JSON_HEDLEY_UNLIKELY(0xDC00 <= codepoint1  && codepoint1 <= 0xDFFF))
                                 {
                                     error_message = "invalid string: surrogate U+DC00..U+DFFF must follow U+D800..U+DBFF";
                                     return token_type::parse_error;
@@ -378,7 +378,7 @@ class lexer : public lexer_base<BasicJsonType>
                             }
 
                             // result of the above calculation yields a proper codepoint
-                            JSON_ASSERT(0x00 <= codepoint && codepoint <= 0x10FFFF);
+                            JSON_ASSERT(0x00 <= codepoint  && codepoint <= 0x10FFFF);
 
                             // translate codepoint into bytes
                             if (codepoint < 0x80)
@@ -390,22 +390,22 @@ class lexer : public lexer_base<BasicJsonType>
                             {
                                 // 2-byte characters: 110xxxxx 10xxxxxx
                                 add(static_cast<char_int_type>(0xC0u | (static_cast<unsigned int>(codepoint) >> 6u)));
-                                add(static_cast<char_int_type>(0x80u | (static_cast<unsigned int>(codepoint) & 0x3Fu)));
+                                add(static_cast<char_int_type>(0x80u | (static_cast<unsigned int>(codepoint)  &0x3Fu)));
                             }
                             else if (codepoint <= 0xFFFF)
                             {
                                 // 3-byte characters: 1110xxxx 10xxxxxx 10xxxxxx
                                 add(static_cast<char_int_type>(0xE0u | (static_cast<unsigned int>(codepoint) >> 12u)));
-                                add(static_cast<char_int_type>(0x80u | ((static_cast<unsigned int>(codepoint) >> 6u) & 0x3Fu)));
-                                add(static_cast<char_int_type>(0x80u | (static_cast<unsigned int>(codepoint) & 0x3Fu)));
+                                add(static_cast<char_int_type>(0x80u | ((static_cast<unsigned int>(codepoint) >> 6u)  &0x3Fu)));
+                                add(static_cast<char_int_type>(0x80u | (static_cast<unsigned int>(codepoint)  &0x3Fu)));
                             }
                             else
                             {
                                 // 4-byte characters: 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
                                 add(static_cast<char_int_type>(0xF0u | (static_cast<unsigned int>(codepoint) >> 18u)));
-                                add(static_cast<char_int_type>(0x80u | ((static_cast<unsigned int>(codepoint) >> 12u) & 0x3Fu)));
-                                add(static_cast<char_int_type>(0x80u | ((static_cast<unsigned int>(codepoint) >> 6u) & 0x3Fu)));
-                                add(static_cast<char_int_type>(0x80u | (static_cast<unsigned int>(codepoint) & 0x3Fu)));
+                                add(static_cast<char_int_type>(0x80u | ((static_cast<unsigned int>(codepoint) >> 12u)  &0x3Fu)));
+                                add(static_cast<char_int_type>(0x80u | ((static_cast<unsigned int>(codepoint) >> 6u)  &0x3Fu)));
+                                add(static_cast<char_int_type>(0x80u | (static_cast<unsigned int>(codepoint)  &0x3Fu)));
                             }
 
                             break;
@@ -910,19 +910,19 @@ class lexer : public lexer_base<BasicJsonType>
     }
 
     JSON_HEDLEY_NON_NULL(2)
-    static void strtof(float& f, const char* str, char** endptr) noexcept
+    static void strtof(float &f, const char* str, char** endptr) noexcept
     {
         f = std::strtof(str, endptr);
     }
 
     JSON_HEDLEY_NON_NULL(2)
-    static void strtof(double& f, const char* str, char** endptr) noexcept
+    static void strtof(double &f, const char* str, char** endptr) noexcept
     {
         f = std::strtod(str, endptr);
     }
 
     JSON_HEDLEY_NON_NULL(2)
-    static void strtof(long double& f, const char* str, char** endptr) noexcept
+    static void strtof(long double &f, const char* str, char** endptr) noexcept
     {
         f = std::strtold(str, endptr);
     }
@@ -1431,10 +1431,10 @@ scan_number_done:
     }
 
     /// return current string value (implicitly resets the token; useful only once)
-    string_t& get_string()
+    string_t &get_string()
     {
         // translate decimal points from locale back to '.' (#4084)
-        if (decimal_point_char != '.' && decimal_point_position != std::string::npos)
+        if (decimal_point_char != '.'  && decimal_point_position != std::string::npos)
         {
             token_buffer[decimal_point_position] = '.';
         }
@@ -1497,7 +1497,7 @@ scan_number_done:
         if (get() == 0xEF)
         {
             // check if we completely parse the BOM
-            return get() == 0xBB && get() == 0xBF;
+            return get() == 0xBB  && get() == 0xBF;
         }
 
         // the first character is not the beginning of the BOM; unget it to
@@ -1518,7 +1518,7 @@ scan_number_done:
     token_type scan()
     {
         // initially, skip the BOM
-        if (position.chars_read_total == 0 && !skip_bom())
+        if (position.chars_read_total == 0  && !skip_bom())
         {
             error_message = "invalid BOM; must be 0xEF 0xBB 0xBF if given";
             return token_type::parse_error;
@@ -1528,7 +1528,7 @@ scan_number_done:
         skip_whitespace();
 
         // ignore comments
-        while (ignore_comments && current == '/')
+        while (ignore_comments  && current == '/')
         {
             if (!scan_comment())
             {

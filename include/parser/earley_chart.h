@@ -6,17 +6,15 @@
 #include <algorithm>
 #include "parser/earley_things.h"
 
-using namespace std;
-
 namespace Elica::Parsing::Earley::Chart {
 
 class ChartState {
 private:
-    vector<unique_ptr<::Elica::Parsing::Earley::Things::Item>> items;
+    std::vector<std::unique_ptr<::Elica::Parsing::Earley::Things::Item>> items;
 
     bool compareItems(
-        const ::Elica::Parsing::Earley::Things::Item& item1,
-        const ::Elica::Parsing::Earley::Things::Item& item2
+        const ::Elica::Parsing::Earley::Things::Item &item1,
+        const ::Elica::Parsing::Earley::Things::Item &item2
     ) const {
         return item1.rule == item2.rule &&
                item1.dotIndex == item2.dotIndex &&
@@ -27,19 +25,19 @@ public:
     ChartState() = default;
 
     // returns raw ptrs
-    vector<::Elica::Parsing::Earley::Things::Item*> getItems() {
-        vector<::Elica::Parsing::Earley::Things::Item*> rawItems;
+    std::vector<::Elica::Parsing::Earley::Things::Item*> getItems() {
+        std::vector<::Elica::Parsing::Earley::Things::Item*> rawItems;
         rawItems.reserve(items.size());
-        for (auto& item : items) {
+        for (auto &item : items) {
             rawItems.push_back(item.get());
         }
         return rawItems;
     }
 
-    const vector<::Elica::Parsing::Earley::Things::Item*> getItems() const {
-        vector<::Elica::Parsing::Earley::Things::Item*> rawItems;
+    const std::vector<::Elica::Parsing::Earley::Things::Item*> getItems() const {
+        std::vector<::Elica::Parsing::Earley::Things::Item*> rawItems;
         rawItems.reserve(items.size());
-        for (const auto& item : items) {
+        for (const auto &item : items) {
             rawItems.push_back(item.get());
         }
         return rawItems;
@@ -50,21 +48,22 @@ public:
         const ::Elica::Parsing::Earley::Things::Rule* rule,
         size_t dotIndex,
         size_t startPosition,
-        vector<const ::Elica::Parsing::Earley::Things::Item*> backPointers = {}
+        std::vector<const ::Elica::Parsing::Earley::Things::Item*> backPointers = {}
     ) {
-        for (const auto& existing : items) {
+        for (const auto &existing : items) {
             if (existing->rule == rule &&
                 existing->dotIndex == dotIndex &&
-                existing->startPosition == startPosition) {
+                existing->startPosition == startPosition
+            ) {
                 return existing.get(); 
             }
         }
 
-        auto newItem = make_unique<::Elica::Parsing::Earley::Things::Item>(
-            rule, dotIndex, startPosition, move(backPointers)
+        auto newItem = std::make_unique<::Elica::Parsing::Earley::Things::Item>(
+            rule, dotIndex, startPosition, std::move(backPointers)
         );
         ::Elica::Parsing::Earley::Things::Item* ptr = newItem.get();
-        items.push_back(move(newItem));
+        items.push_back(std::move(newItem));
         return ptr;
     }
 
@@ -75,7 +74,7 @@ public:
 
 class Chart {
 private:
-    vector<ChartState> states;
+    std::vector<ChartState> states;
 
 public:
     Chart() = default;
@@ -86,11 +85,11 @@ public:
         states.emplace_back();
     }
 
-    ChartState& getState(size_t index) {
+    ChartState &getState(size_t index) {
         return states.at(index);
     }
 
-    const ChartState& getState(size_t index) const {
+    const ChartState &getState(size_t index) const {
         return states.at(index);
     }
 
