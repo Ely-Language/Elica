@@ -3,6 +3,8 @@ bin
 build
 tests
 
+desdoc.txt
+
 # Prerequisites
 *.d
 
