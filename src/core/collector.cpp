@@ -34,6 +34,18 @@ bool Project::loadConfig() {
         this->config.version = j["version"];
         this->config.entry = rootDir / j["enter"];
 
+        // optional toolchain info, e.g.
+        //   "compiler": { "path": "g++", "type": "g++" }
+        this->config.compilerPath = "g++";
+        this->config.compilerType = "g++";
+        if (j.contains("compiler") && j["compiler"].is_object()) {
+            const auto &c = j["compiler"];
+            if (c.contains("path") && c["path"].is_string())
+                this->config.compilerPath = c["path"].get<string>();
+            if (c.contains("type") && c["type"].is_string())
+                this->config.compilerType = c["type"].get<string>();
+        }
+
         return true;
     } catch (const exception &e) {
         cerr << "[Elica][ERROR] Manager parsing failed: " << e.what() << "\n";

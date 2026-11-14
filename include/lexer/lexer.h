@@ -23,6 +23,9 @@ private:
     // get current symbol
     char peek() const;
 
+    // symbol ahead of the current one (pos + 1), '\0' at end
+    char peekNext() const;
+
     // get current symbol  &move to next
     char advance();
 
@@ -36,6 +39,12 @@ private:
     Token scanNumber();
     Token scanIdentifierOrKeyword();
     Token scanString();
+
+    // cCode { } / cppCode { } — the keyword token was already emitted; the
+    // cursor is at whitespace before '{'. Lexes the braced body with `blockLang`
+    // (C or C++) and appends `{ ... }` + body tokens to `out`. Returns false
+    // when there is no '{' after the keyword (caller keeps normal flow).
+    bool scanCodeBlock(LexerLanguage blockLang, std::vector<Token> &out);
 
     const std::unordered_map<std::string, TokenType> &getElyKeywords();
     const std::unordered_map<std::string, TokenType> &getCKeywords();

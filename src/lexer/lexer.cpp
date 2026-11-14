@@ -8,12 +8,115 @@ namespace fs = ::std::filesystem;
 
 namespace Elica::Lexer {
 
+std::string tokenTypeName(const Token &token) {
+    if (std::holds_alternative<CommonToken>(token.type)) {
+        switch (std::get<CommonToken>(token.type)) {
+#define C(V) case CommonToken::V: return #V;
+            C(END_OF_FILE) C(IDENTIFIER) C(INT_LITERAL) C(FLT_LITERAL)
+            C(STR_LITERAL) C(F_STR_LITERAL) C(MULTILINE_STR_LITERAL)
+            C(F_MULTILINE_STR_LITERAL) C(CHAR_LITERAL)
+            C(PLUS) C(MINUS) C(STAR) C(SLASH) C(PERCENT) C(ASSIGN)
+            C(NOT) C(LESS) C(GREATER) C(AMPERSAND) C(HASH) C(AT)
+            C(QUESTION) C(COLON) C(SEMICOLON) C(COMMA) C(DOT)
+            C(EQUAL) C(NOT_EQUAL) C(LESS_EQUAL) C(GREATER_EQUAL)
+            C(PLUS_ASSIGN) C(MINUS_ASSIGN) C(MUL_ASSIGN) C(DIV_ASSIGN)
+            C(MOD_ASSIGN) C(ARROW) C(LPAREN) C(RPAREN) C(LBRACKET)
+            C(RBRACKET) C(LBRACE) C(RBRACE)
+            C(PLUS_PLUS) C(MINUS_MINUS) C(CARET) C(TILDE) C(PIPE)
+            C(SHL) C(SHR) C(LOGICAL_AND) C(LOGICAL_OR) C(HASH_HASH)
+            C(SCOPE) C(ELLIPSIS) C(DOT_STAR) C(ARROW_STAR)
+            C(SHL_ASSIGN) C(SHR_ASSIGN) C(AND_ASSIGN) C(OR_ASSIGN)
+            C(XOR_ASSIGN) C(NATIVE_CODE)
+#undef C
+            default: return "COMMON?";
+        }
+    }
+    if (std::holds_alternative<ElyToken>(token.type)) {
+        switch (std::get<ElyToken>(token.type)) {
+#define E(V) case ElyToken::V: return "ELY:" #V;
+            E(KW_BYTE) E(KW_UBYTE) E(KW_INT) E(KW_UINT) E(KW_SHORT)
+            E(KW_USHORT) E(KW_MORE) E(KW_UMORE) E(KW_FLT) E(KW_DOUBLE)
+            E(KW_NOISED) E(KW_STR) E(KW_ATOM) E(KW_CHAR) E(KW_BOOL)
+            E(KW_VOID) E(KW_SENTINEL) E(KW_ANY) E(KW_FUNC) E(KW_CLASS)
+            E(KW_STRUCT) E(KW_cCode) E(KW_cppCode) E(KW_PUBLIC)
+            E(KW_PRIVATE) E(KW_MINE) E(KW_STATIC) E(KW_COPA) E(KW_CONST)
+            E(KW_NOCOPA) E(KW_SEALED) E(KW_ABSTRACT) E(KW_WAIT)
+            E(KW_UNWAIT) E(KW_STACK) E(KW_HEAP) E(KW_IF) E(KW_ELSE)
+            E(KW_WHILE) E(KW_FOR) E(KW_RETURN) E(KW_TRY) E(KW_RAISE)
+            E(KW_EXCEPT) E(KW_BREAK) E(KW_CONTINUE) E(KW_USING)
+            E(KW_TRUE) E(KW_FALSE) E(KW_IS) E(KW_IN) E(KW_LAMBDA)
+            E(KW_NOT) E(KW_THIS)
+#undef E
+            default: return "ELY?";
+        }
+    }
+    if (std::holds_alternative<CToken>(token.type)) {
+        switch (std::get<CToken>(token.type)) {
+#define CC(V) case CToken::V: return "C:" #V;
+            CC(KW_AUTO) CC(KW_BREAK) CC(KW_CASE) CC(KW_CHAR) CC(KW_CONST)
+            CC(KW_CONTINUE) CC(KW_DEFAULT) CC(KW_DO) CC(KW_DOUBLE)
+            CC(KW_ELSE) CC(KW_ENUM) CC(KW_EXTERN) CC(KW_FLOAT) CC(KW_FOR)
+            CC(KW_GOTO) CC(KW_IF) CC(KW_INLINE) CC(KW_INT) CC(KW_LONG)
+            CC(KW_REGISTER) CC(KW_RESTRICT) CC(KW_RETURN) CC(KW_SHORT)
+            CC(KW_SIGNED) CC(KW_SIZEOF) CC(KW_STATIC) CC(KW_STRUCT)
+            CC(KW_SWITCH) CC(KW_TYPEDEF) CC(KW_UNION) CC(KW_UNSIGNED)
+            CC(KW_VOID) CC(KW_VOLATILE) CC(KW_WHILE) CC(KW_ALIGNAS)
+            CC(KW_ALIGNOF) CC(KW_ATOMIC) CC(KW_BOOL) CC(KW_COMPLEX)
+            CC(KW_GENERIC) CC(KW_IMAGINARY) CC(KW_NORETURN)
+            CC(KW_STATIC_ASSERT) CC(KW_THREAD_LOCAL) CC(KW_FALSE)
+            CC(KW_TRUE) CC(KW_CONSTEXPR) CC(KW_NULLPTR) CC(KW_TYPEOF)
+            CC(KW_TYPEOF_UNQUAL)
+#undef CC
+            default: return "C?";
+        }
+    }
+    if (std::holds_alternative<CppToken>(token.type)) {
+        switch (std::get<CppToken>(token.type)) {
+#define CP(V) case CppToken::V: return "CPP:" #V;
+            CP(KW_ALIGNAS) CP(KW_ALIGNOF) CP(KW_AND) CP(KW_AND_EQ)
+            CP(KW_ASM) CP(KW_AUTO) CP(KW_BITAND) CP(KW_BITOR) CP(KW_BOOL)
+            CP(KW_BREAK) CP(KW_CASE) CP(KW_CATCH) CP(KW_CHAR)
+            CP(KW_CHAR8_T) CP(KW_CHAR16_T) CP(KW_CHAR32_T) CP(KW_CLASS)
+            CP(KW_COMPL) CP(KW_CONCEPT) CP(KW_CONST) CP(KW_CONSTEVAL)
+            CP(KW_CONSTEXPR) CP(KW_CONSTINIT) CP(KW_CONST_CAST)
+            CP(KW_CONTINUE) CP(KW_CO_AWAIT) CP(KW_CO_RETURN)
+            CP(KW_CO_YIELD) CP(KW_DECLTYPE) CP(KW_DEFAULT) CP(KW_DELETE)
+            CP(KW_DO) CP(KW_DOUBLE) CP(KW_DYNAMIC_CAST) CP(KW_ELSE)
+            CP(KW_ENUM) CP(KW_EXPLICIT) CP(KW_EXPORT) CP(KW_EXTERN)
+            CP(KW_FALSE) CP(KW_FLOAT) CP(KW_FOR) CP(KW_FRIEND)
+            CP(KW_GOTO) CP(KW_IF) CP(KW_INLINE) CP(KW_INT) CP(KW_LONG)
+            CP(KW_MUTABLE) CP(KW_NAMESPACE) CP(KW_NEW) CP(KW_NOEXCEPT)
+            CP(KW_NOT) CP(KW_NOT_EQ) CP(KW_NULLPTR) CP(KW_OPERATOR)
+            CP(KW_OR) CP(KW_OR_EQ) CP(KW_PRIVATE) CP(KW_PROTECTED)
+            CP(KW_PUBLIC) CP(KW_REGISTER) CP(KW_REINTERPRET_CAST)
+            CP(KW_REQUIRES) CP(KW_RETURN) CP(KW_SHORT) CP(KW_SIGNED)
+            CP(KW_SIZEOF) CP(KW_STATIC) CP(KW_STATIC_ASSERT)
+            CP(KW_STATIC_CAST) CP(KW_STRUCT) CP(KW_SWITCH)
+            CP(KW_SYNCHRONIZED) CP(KW_TEMPLATE) CP(KW_THIS)
+            CP(KW_THREAD_LOCAL) CP(KW_THROW) CP(KW_TRUE) CP(KW_TRY)
+            CP(KW_TYPEDEF) CP(KW_TYPEID) CP(KW_TYPENAME) CP(KW_UNION)
+            CP(KW_UNSIGNED) CP(KW_USING) CP(KW_VIRTUAL) CP(KW_VOID)
+            CP(KW_VOLATILE) CP(KW_WCHAR_T) CP(KW_WHILE) CP(KW_XOR)
+            CP(KW_XOR_EQ) CP(KW_ATOMIC_CANCEL) CP(KW_ATOMIC_COMMIT)
+            CP(KW_ATOMIC_NOEXCEPT)
+#undef CP
+            default: return "CPP?";
+        }
+    }
+    return "?";
+}
+
 Lexer::Lexer(string src, LexerLanguage lang)
     : source(move(src)), language(lang) {}
 
 char Lexer::peek() const {
     if (pos >= source.size()) return '\0';
     return source[pos];
+}
+
+char Lexer::peekNext() const {
+    if (pos + 1 >= source.size()) return '\0';
+    return source[pos + 1];
 }
 
 char Lexer::advance() {
@@ -179,7 +282,12 @@ const unordered_map<string, TokenType> &Lexer::getCKeywords() {
         {"static_assert", static_cast<TokenType>(CToken::KW_STATIC_ASSERT)},
         {"thread_local", static_cast<TokenType>(CToken::KW_THREAD_LOCAL)},
         {"false", static_cast<TokenType>(CToken::KW_FALSE)},
-        {"true", static_cast<TokenType>(CToken::KW_TRUE)}
+        {"true", static_cast<TokenType>(CToken::KW_TRUE)},
+        // C23
+        {"constexpr", static_cast<TokenType>(CToken::KW_CONSTEXPR)},
+        {"nullptr", static_cast<TokenType>(CToken::KW_NULLPTR)},
+        {"typeof", static_cast<TokenType>(CToken::KW_TYPEOF)},
+        {"typeof_unqual", static_cast<TokenType>(CToken::KW_TYPEOF_UNQUAL)}
     };
     return keywords;
 }
@@ -279,7 +387,11 @@ const unordered_map<string, TokenType> &Lexer::getCppKeywords() {
         {"wchar_t", static_cast<TokenType>(CppToken::KW_WCHAR_T)},
         {"while", static_cast<TokenType>(CppToken::KW_WHILE)},
         {"xor", static_cast<TokenType>(CppToken::KW_XOR)},
-        {"xor_eq", static_cast<TokenType>(CppToken::KW_XOR_EQ)}
+        {"xor_eq", static_cast<TokenType>(CppToken::KW_XOR_EQ)},
+        // C++26
+        {"atomic_cancel", static_cast<TokenType>(CppToken::KW_ATOMIC_CANCEL)},
+        {"atomic_commit", static_cast<TokenType>(CppToken::KW_ATOMIC_COMMIT)},
+        {"atomic_noexcept", static_cast<TokenType>(CppToken::KW_ATOMIC_NOEXCEPT)}
     };
     return keywords;
 }
@@ -291,6 +403,12 @@ Token Lexer::scanNumber() {
     bool isFloat = false;
     bool isHex = false;
     bool isBin = false;
+
+    // leading-dot float: .5  (tokenize() routes '.'+digit here)
+    if (peek() == '.') {
+        isFloat = true;
+        advance();
+    }
 
     // 0x, 0X, 0b, 0B
     if (peek() == '0') {
@@ -347,11 +465,13 @@ Token Lexer::scanNumber() {
             while (isxdigit(peek()) || peek() == '\'') {
                 advance();
             }
-            if (peek() == 'p' || peek() == 'P') {
-                advance();
-                if (peek() == '+' || peek() == '-') advance();
-                while (isdigit(peek())) advance();
-            }
+        }
+        // hex float exponent: 0x1p3 / 0xA.Bp-2 (C99 / C++17)
+        if (peek() == 'p' || peek() == 'P') {
+            isFloat = true;
+            advance();
+            if (peek() == '+' || peek() == '-') advance();
+            while (isdigit(peek()) || peek() == '\'') advance();
         }
     }
 
@@ -399,7 +519,65 @@ Token Lexer::scanIdentifierOrKeyword() {
 
 Token Lexer::scanString() {
     ::Elica::Core::Position startPos(line, column);
-    
+
+    // 0) C++ raw string literal: R"delim( ... )delim"  (max 16-char delim)
+    if (language != LexerLanguage::ELY && peek() == 'R'
+        && pos + 1 < source.size() && source[pos + 1] == '"') {
+        advance();                          // R
+        advance();                          // "
+        string delim;
+        while (!isAtEnd() && peek() != '('
+               && peek() != '\\' && peek() != ')' && peek() != ' '
+               && peek() != '\t' && peek() != '\n' && delim.size() < 16) {
+            delim += advance();
+        }
+        if (!isAtEnd() && peek() == '(') advance();
+        string lexeme;
+        while (!isAtEnd()) {
+            const bool close =
+                (peek() == ')' && pos + 1 + delim.size() < source.size()
+                 && source.compare(pos + 1, delim.size(), delim) == 0
+                 && source[pos + 1 + delim.size()] == '"');
+            if (close) break;
+            lexeme += advance();
+        }
+        if (!isAtEnd()) advance();                       // )
+        for (size_t i = 0; i < delim.size() && !isAtEnd(); ++i) advance();
+        if (!isAtEnd()) advance();                       // "
+        return Token(TokenVariant(CommonToken::STR_LITERAL), lexeme, startPos);
+    }
+
+    // 1) C/C++ prefixes: L" / u" / U" / u8"  and  L' / u' / U' / u8'
+    if (language != LexerLanguage::ELY
+        && (peek() == 'L' || peek() == 'u' || peek() == 'U')) {
+        const char p = peek();
+        const char n1 = peekNext();
+        if (n1 == '"' || n1 == '\'') {
+            advance();                       // single-letter prefix
+        } else if (p == 'u' && n1 == '8'
+                   && pos + 2 < source.size()
+                   && (source[pos + 2] == '"' || source[pos + 2] == '\'')) {
+            advance();                       // u
+            advance();                       // 8
+        }
+    }
+
+    // 2) character literal: ' ... ' (escape sequences included)
+    if (peek() == '\'') {
+        advance();
+        string lexeme;
+        while (!isAtEnd() && peek() != '\'') {
+            if (peek() == '\\') {            // escape: \n, \x41, \' ...
+                lexeme += advance();
+                if (!isAtEnd()) lexeme += advance();
+            } else {
+                lexeme += advance();
+            }
+        }
+        if (!isAtEnd()) advance();           // closing '
+        return Token(TokenVariant(CommonToken::CHAR_LITERAL), lexeme, startPos);
+    }
+
     bool isFString = false;
     if (peek() == 'f' || peek() == 'F') {
         isFString = true;
@@ -407,11 +585,13 @@ Token Lexer::scanString() {
     }
 
     bool isMultiline = false;
-    if (peek() == '"'  && pos + 2 < source.size()  && source[pos + 1] == '"'  && source[pos + 2] == '"') {
+    if (language == LexerLanguage::ELY
+        && peek() == '"'  && pos + 2 < source.size()
+        && source[pos + 1] == '"' && source[pos + 2] == '"') {
         isMultiline = true;
         advance(); advance(); advance();
     } else {
-        advance();
+        advance();                           // opening "
     }
 
     size_t contentStart = pos;
@@ -419,7 +599,8 @@ Token Lexer::scanString() {
 
     if (isMultiline) {
         while (!isAtEnd()) {
-            if (peek() == '"'  && pos + 2 < source.size()  && source[pos + 1] == '"'  && source[pos + 2] == '"') {
+            if (peek() == '"'  && pos + 2 < source.size()
+                && source[pos + 1] == '"'  && source[pos + 2] == '"') {
                 break;
             }
             advance();
@@ -446,6 +627,107 @@ Token Lexer::scanString() {
     return Token(TokenVariant(tokenType), lexeme, startPos);
 }
 
+bool Lexer::scanCodeBlock(LexerLanguage blockLang, std::vector<Token> &out) {
+    // The `cCode`/`cppCode` keyword token was already emitted. The cursor is
+    // somewhere before the opening '{' (whitespace allowed).
+    while (!isAtEnd()  && isspace(static_cast<unsigned char>(peek()))) advance();
+    if (isAtEnd() || peek() != '{') return false;
+
+    const ::Elica::Core::Position bracePos(line, column);
+    advance();                                    // {
+
+    const size_t contentStart = pos;
+    int depth = 1;
+    size_t contentEnd = source.size();
+    ::Elica::Core::Position closePos(0, 0);
+
+    // Skip one quoted literal ('...' or "..."), escapes included.
+    auto skipQuoted = [&](char q) {
+        advance();                                // opening quote
+        while (!isAtEnd()  && peek() != q) {
+            if (peek() == '\\') advance();
+            if (!isAtEnd()) advance();
+        }
+        if (!isAtEnd()) advance();                // closing quote
+    };
+
+    while (!isAtEnd()  && depth > 0) {
+        const char ch = peek();
+
+        if (ch == '"' || ch == '\'') { skipQuoted(ch); continue; }
+
+        if (ch == '/'  && peekNext() == '/') {    // line comment
+            while (!isAtEnd()  && peek() != '\n') advance();
+            continue;
+        }
+        if (ch == '/'  && peekNext() == '*') {    // block comment
+            advance(); advance();
+            while (!isAtEnd()  && !(peek() == '*'  && peekNext() == '/')) advance();
+            if (!isAtEnd()) { advance(); advance(); }
+            continue;
+        }
+        if (blockLang == LexerLanguage::CPP  && ch == 'R'  && peekNext() == '"') {
+            // raw string R"delim( ... )delim" — braces inside must not count
+            advance(); advance();                 // R "
+            string delim;
+            while (!isAtEnd()  && peek() != '('  && delim.size() < 16
+                   && peek() != '\\'  && peek() != ')'  && peek() != ' '
+                   && peek() != '\t'  && peek() != '\n') {
+                delim += advance();
+            }
+            if (!isAtEnd()  && peek() == '(') {
+                advance();
+                while (!isAtEnd()) {
+                    if (peek() == ')'  && pos + 1 + delim.size() < source.size()
+                        && source.compare(pos + 1, delim.size(), delim) == 0
+                        && source[pos + 1 + delim.size()] == '"') {
+                        for (size_t i = 0; i < delim.size() + 2  && !isAtEnd(); ++i) advance();
+                        break;
+                    }
+                    advance();
+                }
+            }
+            continue;
+        }
+
+        if (ch == '{') depth++;
+        else if (ch == '}') {
+            depth--;
+            if (depth == 0) {
+                closePos   = ::Elica::Core::Position(line, column);
+                contentEnd = pos;
+                advance();                        // }
+                break;
+            }
+        }
+        advance();
+    }
+
+    if (depth != 0) {
+        cerr << "[Elica][LEXER ERROR] Unbalanced cCode/cppCode block at "
+             << bracePos.line << ":" << bracePos.column << "\n";
+        return true;
+    }
+
+    out.emplace_back(TokenVariant(CommonToken::LBRACE), "{", bracePos);
+
+    // Lex the block body with the C/C++ lexer; shift positions to global ones.
+    const string content = source.substr(contentStart, contentEnd - contentStart);
+    Lexer subLexer(content, blockLang);
+    for (auto &st : subLexer.tokenize()) {
+        if (std::holds_alternative<CommonToken>(st.type)
+            && std::get<CommonToken>(st.type) == CommonToken::END_OF_FILE) continue;
+        st.position.line += bracePos.line - 1;
+        if (st.position.line == bracePos.line) {
+            st.position.column += bracePos.column;
+        }
+        out.push_back(st);
+    }
+
+    out.emplace_back(TokenVariant(CommonToken::RBRACE), "}", closePos);
+    return true;
+}
+
 vector<Token> Lexer::tokenize() {
     vector<Token> tokens;
 
@@ -456,72 +738,148 @@ vector<Token> Lexer::tokenize() {
         char c = peek();
         ::Elica::Core::Position currentPos(line, column);
 
-        // str  &fstr
-        if (c == '"' || ((c == 'f' || c == 'F')  && pos + 1 < source.size()  && source[pos + 1] == '"')) {
+        // strings: "..." ; char literals '...' ; raw/wide-prefixed forms
+        if (c == '"' || c == '\'') {
+            tokens.push_back(scanString());
+            continue;
+        }
+
+        // Ely f-strings: f"..." / f"""..."""
+        if (language == LexerLanguage::ELY
+            && (c == 'f' || c == 'F')  && pos + 1 < source.size()  && source[pos + 1] == '"') {
+            tokens.push_back(scanString());
+            continue;
+        }
+
+        // C/C++ prefixes: L" u" U" u8" / L' u' U' u8'
+        if (language != LexerLanguage::ELY
+            && (c == 'L' || c == 'u' || c == 'U')) {
+            const char n1 = peekNext();
+            if (n1 == '"' || n1 == '\''
+                || (c == 'u' && n1 == '8' && pos + 2 < source.size()
+                    && (source[pos + 2] == '"' || source[pos + 2] == '\''))) {
+                tokens.push_back(scanString());
+                continue;
+            }
+        }
+
+        // C++ raw strings: R"( ... )" / R"delim( ... )delim"
+        if (language != LexerLanguage::ELY
+            && c == 'R' && pos + 1 < source.size() && source[pos + 1] == '"') {
             tokens.push_back(scanString());
             continue;
         }
 
         // nums
-        if (isdigit(c)) {
+        if (isdigit(c) || (c == '.' && isdigit(peekNext()))) {
             tokens.push_back(scanNumber());
             continue;
         }
 
         // ids  &kws
         if (isalpha(c) || c == '_') {
-            tokens.push_back(scanIdentifierOrKeyword());
+            Token idTok = scanIdentifierOrKeyword();
+            tokens.push_back(idTok);
+
+            // cCode { } / cppCode { } — lex the block body in C/C++ mode
+            if (language == LexerLanguage::ELY
+                && std::holds_alternative<ElyToken>(idTok.type)) {
+                const auto et = std::get<ElyToken>(idTok.type);
+                LexerLanguage blockLang;
+                bool isCodeBlock = true;
+                if (et == ElyToken::KW_cppCode) blockLang = LexerLanguage::CPP;
+                else if (et == ElyToken::KW_cCode) blockLang = LexerLanguage::C;
+                else isCodeBlock = false;
+                if (isCodeBlock) scanCodeBlock(blockLang, tokens);
+            }
             continue;
         }
 
         // symbols  &ops
         advance();
         switch (c) {
-            case '+': 
-                if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::PLUS_ASSIGN), "+=", currentPos);
+            case '+':
+                if (match('+')) tokens.emplace_back(TokenVariant(CommonToken::PLUS_PLUS), "++", currentPos);
+                else if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::PLUS_ASSIGN), "+=", currentPos);
                 else tokens.emplace_back(TokenVariant(CommonToken::PLUS), "+", currentPos);
                 break;
-            case '-': 
-                if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::MINUS_ASSIGN), "-=", currentPos);
-                else if (match('>')) tokens.emplace_back(TokenVariant(CommonToken::ARROW), "->", currentPos);
+            case '-':
+                if (match('-')) tokens.emplace_back(TokenVariant(CommonToken::MINUS_MINUS), "--", currentPos);
+                else if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::MINUS_ASSIGN), "-=", currentPos);
+                else if (match('>')) {
+                    if (match('*')) tokens.emplace_back(TokenVariant(CommonToken::ARROW_STAR), "->*", currentPos);
+                    else tokens.emplace_back(TokenVariant(CommonToken::ARROW), "->", currentPos);
+                }
                 else tokens.emplace_back(TokenVariant(CommonToken::MINUS), "-", currentPos);
                 break;
-            case '*': 
+            case '*':
                 if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::MUL_ASSIGN), "*=", currentPos);
                 else tokens.emplace_back(TokenVariant(CommonToken::STAR), "*", currentPos);
                 break;
-            case '/': 
+            case '/':
                 if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::DIV_ASSIGN), "/=", currentPos);
                 else tokens.emplace_back(TokenVariant(CommonToken::SLASH), "/", currentPos);
                 break;
-            case '%': 
+            case '%':
                 if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::MOD_ASSIGN), "%=", currentPos);
                 else tokens.emplace_back(TokenVariant(CommonToken::PERCENT), "%", currentPos);
                 break;
-            case '=': 
+            case '^':
+                if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::XOR_ASSIGN), "^=", currentPos);
+                else tokens.emplace_back(TokenVariant(CommonToken::CARET), "^", currentPos);
+                break;
+            case '~': tokens.emplace_back(TokenVariant(CommonToken::TILDE), "~", currentPos); break;
+            case '|':
+                if (match('|')) tokens.emplace_back(TokenVariant(CommonToken::LOGICAL_OR), "||", currentPos);
+                else if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::OR_ASSIGN), "|=", currentPos);
+                else tokens.emplace_back(TokenVariant(CommonToken::PIPE), "|", currentPos);
+                break;
+            case '&':
+                if (match('&')) tokens.emplace_back(TokenVariant(CommonToken::LOGICAL_AND), "&&", currentPos);
+                else if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::AND_ASSIGN), "&=", currentPos);
+                else tokens.emplace_back(TokenVariant(CommonToken::AMPERSAND), "&", currentPos);
+                break;
+            case '=':
                 if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::EQUAL), "==", currentPos);
                 else tokens.emplace_back(TokenVariant(CommonToken::ASSIGN), "=", currentPos);
                 break;
-            case '!': 
+            case '!':
                 if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::NOT_EQUAL), "!=", currentPos);
                 else tokens.emplace_back(TokenVariant(CommonToken::NOT), "!", currentPos);
                 break;
-            case '<': 
-                if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::LESS_EQUAL), "<=", currentPos);
+            case '<':
+                if (match('<')) {
+                    if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::SHL_ASSIGN), "<<=", currentPos);
+                    else tokens.emplace_back(TokenVariant(CommonToken::SHL), "<<", currentPos);
+                }
+                else if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::LESS_EQUAL), "<=", currentPos);
                 else tokens.emplace_back(TokenVariant(CommonToken::LESS), "<", currentPos);
                 break;
-            case '>': 
-                if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::GREATER_EQUAL), ">=", currentPos);
+            case '>':
+                if (match('>')) {
+                    if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::SHR_ASSIGN), ">>=", currentPos);
+                    else tokens.emplace_back(TokenVariant(CommonToken::SHR), ">>", currentPos);
+                }
+                else if (match('=')) tokens.emplace_back(TokenVariant(CommonToken::GREATER_EQUAL), ">=", currentPos);
                 else tokens.emplace_back(TokenVariant(CommonToken::GREATER), ">", currentPos);
                 break;
-            case '&': tokens.emplace_back(TokenVariant(CommonToken::AMPERSAND), "&", currentPos); break;
-            case '#': tokens.emplace_back(TokenVariant(CommonToken::HASH), "#", currentPos); break;
+            case '#':
+                if (match('#')) tokens.emplace_back(TokenVariant(CommonToken::HASH_HASH), "##", currentPos);
+                else tokens.emplace_back(TokenVariant(CommonToken::HASH), "#", currentPos);
+                break;
             case '@': tokens.emplace_back(TokenVariant(CommonToken::AT), "@", currentPos); break;
             case '?': tokens.emplace_back(TokenVariant(CommonToken::QUESTION), "?", currentPos); break;
-            case ':': tokens.emplace_back(TokenVariant(CommonToken::COLON), ":", currentPos); break;
+            case ':':
+                if (match(':')) tokens.emplace_back(TokenVariant(CommonToken::SCOPE), "::", currentPos);
+                else tokens.emplace_back(TokenVariant(CommonToken::COLON), ":", currentPos);
+                break;
             case ';': tokens.emplace_back(TokenVariant(CommonToken::SEMICOLON), ";", currentPos); break;
             case ',': tokens.emplace_back(TokenVariant(CommonToken::COMMA), ",", currentPos); break;
-            case '.': tokens.emplace_back(TokenVariant(CommonToken::DOT), ".", currentPos); break;
+            case '.':
+                if (match('.') && match('.')) tokens.emplace_back(TokenVariant(CommonToken::ELLIPSIS), "...", currentPos);
+                else if (match('*')) tokens.emplace_back(TokenVariant(CommonToken::DOT_STAR), ".*", currentPos);
+                else tokens.emplace_back(TokenVariant(CommonToken::DOT), ".", currentPos);
+                break;
             case '(': tokens.emplace_back(TokenVariant(CommonToken::LPAREN), "(", currentPos); break;
             case ')': tokens.emplace_back(TokenVariant(CommonToken::RPAREN), ")", currentPos); break;
             case '[': tokens.emplace_back(TokenVariant(CommonToken::LBRACKET), "[", currentPos); break;

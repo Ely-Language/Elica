@@ -38,6 +38,10 @@ struct ProjectConfig {
     std::string version;
     fs::path entry;
     std::unordered_map<std::string, int> settings;
+
+    // Toolchain (manager.json "compiler"): used for stdlib include resolution.
+    std::string compilerPath;   // e.g. "g++"
+    std::string compilerType;    // e.g. "g++" / "gcc" / "clang++"
 };
 
 struct ModuleInfo {
@@ -77,11 +81,17 @@ private:
     // &
     std::vector<::Elica::Features::Preprocess::Macro::StructMacro> structMacros;
 
+    // external ("<...>") includes resolved via the toolchain (stdlib)
+    std::vector<fs::path> externalIncludes;
+
     fs::path locateModule(const std::string &moduleName) const;
 
     friend class Elica::Features::Preprocess::Preprocessor;
 public:
     explicit Project(fs::path rootDir);
+
+    void addExternalInclude(fs::path p) { externalIncludes.push_back(std::move(p)); }
+    const std::vector<fs::path> &getExternalIncludes() const { return externalIncludes; }
 
     bool loadConfig();
 

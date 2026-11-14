@@ -2,12 +2,14 @@
 #pragma once
 
 #include <filesystem>
+#include <memory>
 #include <set>
 #include <string>
 #include <vector>
 
 #include "core/utils.h"
 #include "features/protected_regions.h"
+#include "features/toolchain.h"
 
 namespace Elica::Core { class Project; }
 
@@ -22,6 +24,7 @@ class Jumper {
 private:
     Elica::Core::Project &project;
     std::set<fs::path> visited;
+    std::unique_ptr<Elica::Features::Toolchain> toolchain;   // lazy, from manager.json
 
     bool addFileIfNew(const fs::path &file);
     bool visitFile(const fs::path &file);

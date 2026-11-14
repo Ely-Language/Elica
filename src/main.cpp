@@ -3,6 +3,8 @@
 #include <iostream>
 #include <filesystem>
 #include <vector>
+#include <iomanip>
+#include <cstdio>
 
 // Elica
 #include "core/utils.h"
@@ -14,6 +16,8 @@
 #include "features/preprocessor.h"
 #include "features/macro.h"
 #include "features/jumper.h"
+#include "parser/ast_maker.h"
+#include "parser/grammars.h"
 
 using namespace std;
 
@@ -104,6 +108,7 @@ int dev(string &pathToFile) {
 
     // Phase 0: graph walk — collect reachable files (ely/elyc/c/cpp/h/hpp)
     Elica::Features::Preprocess::Jumping::Jumper jumper(*project);
+    cout << "JUMPING..." << endl;
     jumper.jumpAll();
 
     if (project->traceErrors() != 0) {
@@ -127,14 +132,29 @@ int dev(string &pathToFile) {
     //      << " @=" << project->textMacros.size()
     //      << " &=" << project->structMacros.size() << "\n\n";
 
-    // Phase 2: preprocess + lex each file
-    for (const auto &file : elyFiles) {
-        const auto rel = fs::relative(file, config.entry.parent_path());
-        cout << "── " << rel << " ──\n";
+    // Helper: escape control characters so the dump stays one token per line.
+    const auto escapeLexeme = [](const std::string &s) {
+        std::string out;
+        for (const char ch : s) {
+            switch (ch) {
+                case '\n': out += "\\n"; break;
+                case '\r': out += "\\r"; break;
+                case '\t': out += "\\t"; break;
+                default:
+                    if (static_cast<unsigned char>(ch) < 0x20) {
+                        char buf[8];
+                        snprintf(buf, sizeof(buf), "\\x%02X", static_cast<unsigned char>(ch));
+                        out += buf;
+                    } else {
+                        out += ch;
+                    }
+            }
+        }
+        return out;
+    };
 
-        auto tokens = preprocessor->preprocess(file,
-                                               Elica::Lexer::LexerLanguage::ELY);
-
+    // Helper: print a token stream in a human-readable form.
+    const auto printTokens = [&](const std::vector<Elica::Lexer::Token> &tokens) {
         for (const auto &token : tokens) {
             if (std::holds_alternative<Elica::Lexer::CommonToken>(token.type) &&
                 std::get<Elica::Lexer::CommonToken>(token.type) ==
@@ -142,9 +162,84 @@ int dev(string &pathToFile) {
                 continue;
             }
             cout << "  [" << token.position.line
-                 << ":" << token.position.column
-                 << "] variant=" << token.type.index()
-                 << "  " << token.lexeme << "\n";
+                 << ":" << token.position.column << "] "
+                 << std::left << std::setw(26)
+                 << Elica::Lexer::tokenTypeName(token)
+                 << escapeLexeme(token.lexeme) << "\n";
+        }
+    };
+
+    // Helper: parse tokens into an AST and print it (or report the failure).
+    const auto parseAndDump = [&](const std::vector<Elica::Lexer::Token> &tokens,
+                                  Elica::Lexer::LexerLanguage lang,
+                                  const std::string &rel) {
+        auto tree = Elica::Parsing::parseTokens(tokens, lang);
+        if (tree) {
+            auto prog = Elica::Parsing::buildProgram(*tree, tokens, rel);
+            Elica::Parsing::printProgram(*prog, cout);
+        } else {
+            cout << "  [PARSE FAILED: " << rel << "]\n";
+        }
+    };
+
+    // Phase 2: preprocess + lex each Ely file, then parse into an AST.
+    for (const auto &file : elyFiles) {
+        const auto rel = fs::relative(file, config.entry.parent_path());
+        cout << "── " << rel << " ──\n";
+
+        auto tokens = preprocessor->preprocess(file,
+                                               Elica::Lexer::LexerLanguage::ELY);
+
+        printTokens(tokens);
+        cout << "\n";
+
+        // Collapse cCode/cppCode blocks into leaf nodes, then parse.
+        std::vector<std::string> blockLangs;
+        auto clean = Elica::Parsing::collapseNativeBlocks(tokens, blockLangs);
+        parseAndDump(clean, Elica::Lexer::LexerLanguage::ELY, rel.string());
+        cout << "\n";
+    }
+
+    // Phase 3: lex + parse native C/C++ files. Raw source — no macro
+    // preprocessing (C/C++ preprocessing is intentionally out of scope).
+    const auto lexNative = [&](const fs::path &file, Elica::Lexer::LexerLanguage lang) {
+        const auto rel = fs::relative(file, config.entry.parent_path());
+        cout << "── " << rel << " ["
+             << (lang == Elica::Lexer::LexerLanguage::C ? "C" : "C++") << "] ──\n";
+
+        string source = project->getRawFile(file);
+        Elica::Lexer::Lexer rawLexer(source, lang);
+        auto tokens = rawLexer.tokenize();
+        printTokens(tokens);
+        cout << "\n";
+
+        // Pull preprocessor directives out, then parse the rest.
+        std::vector<std::string> directives;
+        auto clean = Elica::Parsing::extractDirectives(tokens, directives);
+        if (!directives.empty()) {
+            cout << "  directives:\n";
+            for (const auto &d : directives) cout << "    " << d << "\n";
+            cout << "\n";
+        }
+        parseAndDump(clean, lang, rel.string());
+        cout << "\n";
+    };
+
+    for (const auto &file : project->getNativeSourceFiles()) {
+        const auto ext = file.extension().string();
+        lexNative(file, (ext == ".c") ? Elica::Lexer::LexerLanguage::C
+                                      : Elica::Lexer::LexerLanguage::CPP);
+    }
+    for (const auto &file : project->getNativeHeaderFiles()) {
+        lexNative(file, Elica::Lexer::LexerLanguage::CPP);
+    }
+
+    // Stdlib resolution report (system <...> includes found via the toolchain).
+    if (!project->getExternalIncludes().empty()) {
+        const auto &incs = project->getExternalIncludes();
+        cout << "Resolved system includes (" << incs.size() << "):\n";
+        for (const auto &inc : incs) {
+            cout << "  " << inc.string() << "\n";
         }
         cout << "\n";
     }

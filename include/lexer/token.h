@@ -30,7 +30,20 @@ enum class CommonToken : TokenType {
     PLUS_ASSIGN, MINUS_ASSIGN, MUL_ASSIGN, DIV_ASSIGN, MOD_ASSIGN,
     ARROW,
 
-    LPAREN, RPAREN, LBRACKET, RBRACKET, LBRACE, RBRACE
+    LPAREN, RPAREN, LBRACKET, RBRACKET, LBRACE, RBRACE,
+
+    // C/C++ operators (added at the end so existing token ids don't shift)
+    PLUS_PLUS, MINUS_MINUS,      // ++ --
+    CARET, TILDE, PIPE,          // ^ ~ |
+    SHL, SHR,                    // << >>
+    LOGICAL_AND, LOGICAL_OR,     // && ||
+    HASH_HASH,                   // ## (token pasting; no macro expansion)
+    SCOPE,                       // ::
+    ELLIPSIS,                    // ...
+    DOT_STAR, ARROW_STAR,        // .* ->*
+    SHL_ASSIGN, SHR_ASSIGN,      // <<= >>=
+    AND_ASSIGN, OR_ASSIGN, XOR_ASSIGN, // &= |= ^=
+    NATIVE_CODE                  // collapsed cCode/cppCode block (parser only)
 };
 
 enum class ElyToken : TokenType {
@@ -63,7 +76,9 @@ enum class CToken : TokenType {
     KW_UNSIGNED, KW_VOID, KW_VOLATILE, KW_WHILE,
     KW_ALIGNAS, KW_ALIGNOF, KW_ATOMIC, KW_BOOL, KW_COMPLEX, KW_GENERIC,
     KW_IMAGINARY, KW_NORETURN, KW_STATIC_ASSERT, KW_THREAD_LOCAL,
-    KW_FALSE, KW_TRUE
+    KW_FALSE, KW_TRUE,
+    // C23
+    KW_CONSTEXPR, KW_NULLPTR, KW_TYPEOF, KW_TYPEOF_UNQUAL
 };
 
 // C++
@@ -92,7 +107,9 @@ enum class CppToken : TokenType {
     KW_UNION, KW_UNSIGNED, KW_USING,
     KW_VIRTUAL, KW_VOID, KW_VOLATILE,
     KW_WCHAR_T, KW_WHILE,
-    KW_XOR, KW_XOR_EQ
+    KW_XOR, KW_XOR_EQ,
+    // C++26
+    KW_ATOMIC_CANCEL, KW_ATOMIC_COMMIT, KW_ATOMIC_NOEXCEPT
 };
 
 enum LexerLanguage {
@@ -109,5 +126,9 @@ struct Token {
     Token(TokenVariant t, std::string lex, ::Elica::Core::Position pos)
         : type(t), lexeme(std::move(lex)), position(pos) {}
 };
+
+// Human-readable name of a token's type (diagnostics / dumps),
+// e.g. "PLUS_PLUS", "ELY:KW_INT", "CPP:KW_OPERATOR".
+std::string tokenTypeName(const Token &token);
 
 }

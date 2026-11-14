@@ -11,6 +11,8 @@
 #include "core/collector.h"
 #include "nlohmann/json.hpp"
 
+#define DEBUG
+
 using namespace std;
 namespace fs = filesystem;
 
@@ -76,6 +78,7 @@ Jumper::Jumper(::Elica::Core::Project &proj) : project(proj) {}
 // ---------------------------------------------------------------
 
 bool Jumper::addFileIfNew(const fs::path &file) {
+    cout << "Adding file: \"" << file << "\" if it's new... ";
     std::error_code ec;
     const fs::path normalized = fs::weakly_canonical(file, ec);
     if (ec) return false;
@@ -83,6 +86,8 @@ bool Jumper::addFileIfNew(const fs::path &file) {
     visited.insert(normalized);
 
     const auto ext = file.extension().string();
+    cout << "matching extention: " << ext << endl;
+
     if (ext == ".ely") {
         project.addFile(file, ::Elica::Core::FileType::ELY);
     } else if (ext == ".elyc") {
@@ -99,12 +104,14 @@ bool Jumper::addFileIfNew(const fs::path &file) {
         return false;
     }
 
+    cout << "visiting: " << file << endl;
     return visitFile(file);
 }
 
 bool Jumper::visitFile(const fs::path &file) {
     const string source = project.getRawFile(file);
     if (source.empty()) return false;
+    cout << "scanning file imports..." << endl;
     scanImports(file, source);
     return true;
 }
@@ -114,17 +121,21 @@ bool Jumper::visitFile(const fs::path &file) {
 // ---------------------------------------------------------------
 
 void Jumper::scanImports(const fs::path &file, const string &source) {
+    cout << "regions scan..." << endl;
     const auto regions = ProtectedRegions::scan(source);
     vector<string> originals;
+    cout << "masking..." << endl;
     const string masked = ProtectedRegions::mask(source, regions, originals);
 
     if (isCppSource(file) || isCSource(file) || isHeader(file)) {
+        cout << "scanning includes..." << endl;
         // C/C++: only #include (no cppCode/cCode inside these files).
         scanIncludes(masked, file);
         return;
     }
 
     if (isElyFile(file)) {
+        cout << "scanning usings..." << endl;
         // Ely: `using` in the masked body.
         scanUsings(masked, file);
 
@@ -140,6 +151,7 @@ void Jumper::scanImports(const fs::path &file, const string &source) {
             vector<string> subOriginals;
             const string subMasked =
                 ProtectedRegions::mask(originals[idx], subRegions, subOriginals);
+            cout << "scanning external includes from Ely..." << endl; 
             scanIncludes(subMasked, file);
         }
     }
@@ -156,6 +168,9 @@ void Jumper::scanIncludes(const string &masked, const fs::path &fromFile) {
 
         // #include "local.h"
         if (opener == '"') {
+#ifdef DEBUG
+            cout << "found a locale include" << endl;
+#endif
             const size_t end = masked.find('"', p + 1);
             if (end != string::npos) {
                 handleInclude(masked.substr(p + 1, end - p - 1), fromFile);
@@ -164,8 +179,12 @@ void Jumper::scanIncludes(const string &masked, const fs::path &fromFile) {
             }
         }
 
-        // #include <system.h> — try to resolve locally, else silently skip.
+        // #include <system.h> — try to resolve locally, then via the
+        // toolchain (stdlib; resolution only, no recursion into stdlib).
         if (opener == '<') {
+#ifdef DEBUG
+            cout << "found an system header" << endl;
+#endif
             const size_t end = masked.find('>', p + 1);
             if (end != string::npos) {
                 const string target = masked.substr(p + 1, end - p - 1);
@@ -175,6 +194,20 @@ void Jumper::scanIncludes(const string &masked, const fs::path &fromFile) {
                 }
                 if (fs::exists(candidate) && fs::is_regular_file(candidate)) {
                     addFileIfNew(candidate);
+                } else {
+                    const auto &cfg = project.getConfig();
+                    if (!toolchain) {
+                        toolchain = std::make_unique<Elica::Features::Toolchain>(
+                            cfg.compilerPath, cfg.compilerType);
+                    }
+                    const auto lang =
+                        (fromFile.extension() == ".c")
+                            ? ::Elica::Lexer::LexerLanguage::C
+                            : ::Elica::Lexer::LexerLanguage::CPP;
+                    fs::path sys = toolchain->resolveInclude(target, lang);
+                    if (!sys.empty()) {
+                        project.addExternalInclude(sys);
+                    }
                 }
                 pos = end + 1;
                 continue;
@@ -183,6 +216,9 @@ void Jumper::scanIncludes(const string &masked, const fs::path &fromFile) {
 
         pos += 8;
     }
+#ifdef DEBUG
+    cout << "here we are at the end of includes scan" << endl;
+#endif
 }
 
 void Jumper::scanUsings(const string &masked, const fs::path &fromFile) {
@@ -393,19 +429,35 @@ bool Jumper::jumpFrom(const fs::path &entry) {
     }
     std::error_code ec;
     const fs::path normalized = fs::weakly_canonical(entry, ec);
-    if (!ec && visited.count(normalized)) return true;
+#ifdef DEBUG
+	cout<<"Normalized path is "<< normalized << endl;
+#endif
+    if (!ec && visited.count(normalized)) {
+#ifdef DEBUG
+        cout << "(!ec && visited.count(normalized)) = true." << endl;
+#endif
+        return true;
+    }
     addFileIfNew(entry);
     return true;
 }
 
 bool Jumper::jumpAll() {
     const auto &entry = project.getConfig().entry;
+#ifdef DEBUG
+    cout << "Config recieved" << endl;
+#endif
     if (entry.empty()) {
         project.pushError(::Elica::Core::Error(0, 0, project.getRootDir(),
-            "manager.json has no \"enter\" field"));
+        "manager.json has no \"enter\" field"));
         return false;
     }
-    return jumpFrom(entry);
+#ifdef DEBUG
+    cout <<"Jumping from entry..." << endl;
+#endif
+    bool jumpingResult = jumpFrom(entry);
+    cout << "jumping finished with result: " << jumpingResult << endl; 
+    return jumpingResult;
 }
 
 }

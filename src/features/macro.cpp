@@ -270,8 +270,16 @@ shared_ptr<TextMacro> MacroParser::parseTextMacro(
     while (!rawBody.empty()  && isspace(rawBody.back())) rawBody.pop_back();
 
     if (rawBody.size() >= 2  && rawBody.front() == '{'  && rawBody.back() == '}') {
+        // Braced body: keep the content as-is (trailing ';' inside is a
+        // statement terminator, part of the body).
         rawBody = rawBody.substr(1, rawBody.size() - 2);
         while (!rawBody.empty()  && isspace(rawBody.front())) rawBody.erase(rawBody.begin());
+        while (!rawBody.empty()  && isspace(rawBody.back())) rawBody.pop_back();
+    } else {
+        // Non-braced body (@PI 3.14; / @str __YS.ystr; / @operator<^>(a,b) to(a,b);):
+        // a trailing ';' is the DEFINITION terminator, not part of the body.
+        // Strip it so it doesn't leak into every expansion.
+        while (!rawBody.empty()  && rawBody.back() == ';') rawBody.pop_back();
         while (!rawBody.empty()  && isspace(rawBody.back())) rawBody.pop_back();
     }
 
