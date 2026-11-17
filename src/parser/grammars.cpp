@@ -67,12 +67,14 @@ void addSharedExpressionRules(Grammar &g) {
     g.addRule("new_body", {"type", "arr_suffix", "brace_init?"});
     g.addRule("new_body", {"primary", "(", "args", ")"});
     g.addRule("new_body", {"primary", "brace_init"});
+    g.addRule("new_body", {"id_path", "(", "args", ")"});
 
     g.addRule("postfix", {"postfix", "(", "args", ")"});
     g.addRule("postfix", {"postfix", "[", "expr", "]"});
     g.addRule("postfix", {"postfix", ".", "id"});
     g.addRule("postfix", {"postfix", "->", "id"});
     g.addRule("postfix", {"postfix", "::", "id"});
+    g.addRule("postfix", {"postfix", "?", ".", "id"});  // P1.2 safe navigation a?.b
     g.addRule("postfix", {"postfix", "++"});
     g.addRule("postfix", {"postfix", "--"});
     g.addRule("postfix", {"postfix", "<", "template_args", ">", "(", "args", ")"});
@@ -117,8 +119,11 @@ void addSharedExpressionRules(Grammar &g) {
 
     g.addRule("args", {"args_list"});
     g.addRule("args", {});
-    g.addRule("args_list", {"args_list", ",", "expr"});
-    g.addRule("args_list", {"expr"});
+    // P1.4 named arguments: foo(name = x, age = y)
+    g.addRule("args_list", {"args_list", ",", "arg_item"});
+    g.addRule("args_list", {"arg_item"});
+    g.addRule("arg_item", {"expr"});
+    g.addRule("arg_item", {"id", "=", "expr"});
 
     // initializer lists
     g.addRule("brace_init?", {});
@@ -129,6 +134,18 @@ void addSharedExpressionRules(Grammar &g) {
     g.addRule("brace_items", {});
     g.addRule("brace_item", {"expr"});
     g.addRule("brace_item", {"brace_init"});
+    // P1.6 JSON-style dict {k: v} / array {v1, v2}
+    g.addRule("dict_init", {"{", "dict_items", "}"});
+    g.addRule("dict_items", {"dict_items", ",", "dict_item"});
+    g.addRule("dict_items", {"dict_item"});
+    g.addRule("dict_items", {});
+    g.addRule("dict_item", {"expr", ":", "expr"});
+    g.addRule("primary", {"dict_init"});
+    g.addRule("primary", {"array_init"});
+    g.addRule("array_init", {"{", "array_items", "}"});
+    g.addRule("array_items", {"array_items", ",", "expr"});
+    g.addRule("array_items", {"expr"});
+    g.addRule("array_items", {});
 }
 
 void addSharedStatementRules(Grammar &g) {
@@ -210,6 +227,7 @@ void addSharedStatementRules(Grammar &g) {
     g.addRule("stmt", {"while_stmt"});
     g.addRule("stmt", {"do_stmt"});
     g.addRule("stmt", {"for_stmt"});
+    g.addRule("stmt", {"for_in_stmt"});
     g.addRule("stmt", {"switch_stmt"});
     g.addRule("stmt", {"return_stmt"});
     g.addRule("stmt", {"break_stmt"});
@@ -229,10 +247,13 @@ void addSharedStatementRules(Grammar &g) {
     g.addRule("while_stmt", {"while", "(", "expr", ")", "stmt"});
     g.addRule("do_stmt", {"do", "stmt", "while", "(", "expr", ")", ";"});
     g.addRule("for_stmt", {"for", "(", "for_init", "expr_opt", ";", "expr_opt", ")", "stmt"});
+    g.addRule("for_in_stmt", {"for", "(", "type", "id", "in", "expr", ")", "block"});
+    g.addRule("for_in_stmt", {"for", "(", "type", "id", "in", "expr", ")", "stmt"});
     g.addRule("switch_stmt", {"switch", "(", "expr", ")", "stmt"});
     g.addRule("case_label", {"case", "expr", ":", "stmt"});
+    g.addRule("case_label", {"case", "expr", "=", ">", "stmt"});
     g.addRule("case_label", {"default", ":", "stmt"});
-    // case/default appear as statements inside switch bodies
+    g.addRule("case_label", {"default", "=", ">", "stmt"});
     g.addRule("stmt", {"case_label"});
     g.addRule("goto_stmt", {"goto", "id", ";"});
     g.addRule("label_stmt", {"id", ":", "stmt"});
@@ -289,16 +310,25 @@ void addSharedStatementRules(Grammar &g) {
     addSharedExpressionRules(g);
     addSharedStatementRules(g);
 
+    g.addRule("type_word", {".", "id_path"});
+
+    g.addRule("primary", {".", "id_path"});
+
     g.start = "ely_program";
     g.addRule("ely_program", {"ely_top_list"});
     g.addRule("ely_top_list", {"ely_top_list", "ely_top"});
     g.addRule("ely_top_list", {});
 
+    
+    g.addRule("ely_var_decl", {"ely_mods", "var_decl"});
+    
     g.addRule("ely_top", {"using_decl"});
     g.addRule("ely_top", {"ely_func_decl"});
-    g.addRule("ely_top", {"var_decl"});
+    g.addRule("ely_top", {"ely_var_decl"});
     g.addRule("ely_top", {"ely_class_decl"});
     g.addRule("ely_top", {"struct_decl"});
+    g.addRule("ely_top", {"c_typedef_decl"});
+    g.addRule("ely_top", {"ely_namespace_decl"});
     g.addRule("ely_top", {"cpp_code"});
     g.addRule("ely_top", {";"});
 
@@ -306,30 +336,50 @@ void addSharedStatementRules(Grammar &g) {
     g.addRule("using_target", {"id_path"});
     g.addRule("using_target", {"str_lit"});
 
-    g.addRule("ely_func_decl", {"ely_mods", "type", "func", "id", "(", "param_list", ")", "block"});
-    g.addRule("ely_func_decl", {"ely_mods", "type", "func", "id", "(", "param_list", ")", ";"});
+    g.addRule("ely_func_decl", {"ely_mods", "type", "func", "id", "ely_template_params", "(", "param_list", ")", "block"});
+    g.addRule("ely_func_decl", {"ely_mods", "type", "func", "id", "ely_template_params", "(", "param_list", ")", ";"});
+    
     g.addRule("ely_mods", {"ely_mods", "ely_mod"});
     g.addRule("ely_mods", {});
     for (const char *m : {"public", "private", "mine", "static", "const", "sealed",
-                          "abstract", "wait", "unwait", "stack", "heap", "copa", "nocopa"}) {
-        g.addRule("ely_mod", {m});
-    }
-
+        "abstract", "wait", "unwait", "stack", "heap", "copa", "nocopa"}) {
+            g.addRule("ely_mod", {m});
+        }
+        
     g.addRule("param_list", {"param_list", ",", "param"});
     g.addRule("param_list", {"param"});
     g.addRule("param_list", {});
     g.addRule("param", {"type", "id"});
     g.addRule("param", {"type", "id", "=", "expr"});
 
-    g.addRule("ely_class_decl", {"ely_mods", "class", "id", "{", "ely_class_members", "}"});
+
+    
+    g.addRule("ely_class_decl", {"ely_mods", "class", "id", "ely_template_params", "ely_class_bases", "{", "ely_class_members", "}"});
+    g.addRule("ely_class_bases", {":", "ely_base_list"});
+    g.addRule("ely_class_bases", {});
+    g.addRule("ely_base_list", {"ely_base_list", ",", "ely_base"});
+    g.addRule("ely_base_list", {"ely_base"});
+    g.addRule("ely_base", {"id_path"});
+    g.addRule("ely_base", {"public", "id_path"});
+    g.addRule("ely_base", {"private", "id_path"});
+    g.addRule("ely_base", {"protected", "id_path"});
     g.addRule("ely_class_members", {"ely_class_members", "ely_class_member"});
     g.addRule("ely_class_members", {});
     g.addRule("ely_class_member", {"ely_func_decl"});
-    g.addRule("ely_class_member", {"var_decl"});
+    g.addRule("ely_class_member", {"ely_var_decl"});
 
-    g.addRule("struct_decl", {"ely_mods", "struct", "id", "{", "var_decl_list", "}"});
-    g.addRule("var_decl_list", {"var_decl_list", "var_decl"});
-    g.addRule("var_decl_list", {});
+    g.addRule("struct_decl", {"ely_mods", "struct", "id", "{", "ely_var_decl_list", "}"});
+    g.addRule("ely_var_decl_list", {"ely_var_decl_list", "ely_var_decl"});
+    g.addRule("ely_var_decl_list", {});
+
+    g.addRule("ely_namespace_decl", {"namespace", "id_path", "{", "ely_top_list", "}"});
+
+    g.addRule("ely_template_params", {"<", "template_param_list", ">"});
+    g.addRule("ely_template_params", {});
+    g.addRule("template_param_list", {"template_param_list", ",", "template_param"});
+    g.addRule("template_param_list", {"template_param"});
+    g.addRule("template_param", {"id"});
+
     return g;
 }
 
@@ -341,6 +391,9 @@ void addSharedStatementRules(Grammar &g) {
     Grammar g;
     addSharedExpressionRules(g);
     addSharedStatementRules(g);
+
+    g.addRule("type_word", {"::", "id_path"});
+    g.addRule("primary", {"::", "id_path"});
 
     g.start = "c_program";
     g.addRule("c_program", {"c_top_list"});
@@ -380,6 +433,9 @@ void addSharedStatementRules(Grammar &g) {
     Grammar g;
     addSharedExpressionRules(g);
     addSharedStatementRules(g);
+
+    g.addRule("type_word", {"::", "id_path"});
+    g.addRule("primary", {"::", "id_path"});
 
     g.start = "cpp_program";
     g.addRule("cpp_program", {"cpp_top_list"});

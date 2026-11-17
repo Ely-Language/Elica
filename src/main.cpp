@@ -18,12 +18,23 @@
 #include "features/jumper.h"
 #include "parser/ast_maker.h"
 #include "parser/grammars.h"
+#include "semantic/analyzer.h"
 
 using namespace std;
 
 namespace fs = std::filesystem;
 
+// DEBUG MODE
+#define ALL_DEBUG
+
+#ifdef ALL_DEBUG
 #define DEBUG
+#define PREPOC_DEBUG
+#define LEX_DEBUG
+#define PARSE_DEBUG
+#define SEMA_DEBUG
+#endif
+
 
 #define VERSION "27.1 devstream"
 #define BUILD "3"
@@ -183,6 +194,7 @@ int dev(string &pathToFile) {
     };
 
     // Phase 2: preprocess + lex each Ely file, then parse into an AST.
+    std::vector<std::shared_ptr<Elica::Parsing::Program>> elyPrograms;
     for (const auto &file : elyFiles) {
         const auto rel = fs::relative(file, config.entry.parent_path());
         cout << "── " << rel << " ──\n";
@@ -196,12 +208,20 @@ int dev(string &pathToFile) {
         // Collapse cCode/cppCode blocks into leaf nodes, then parse.
         std::vector<std::string> blockLangs;
         auto clean = Elica::Parsing::collapseNativeBlocks(tokens, blockLangs);
-        parseAndDump(clean, Elica::Lexer::LexerLanguage::ELY, rel.string());
+        auto tree = Elica::Parsing::parseTokens(clean, Elica::Lexer::LexerLanguage::ELY);
+        if (tree) {
+            auto prog = Elica::Parsing::buildProgram(*tree, clean, rel.string());
+            elyPrograms.push_back(prog);
+            Elica::Parsing::printProgram(*prog, cout);
+        } else {
+            cout << "  [PARSE FAILED: " << rel << "]\n";
+        }
         cout << "\n";
     }
 
     // Phase 3: lex + parse native C/C++ files. Raw source — no macro
     // preprocessing (C/C++ preprocessing is intentionally out of scope).
+    std::vector<std::shared_ptr<Elica::Parsing::Program>> nativePrograms;
     const auto lexNative = [&](const fs::path &file, Elica::Lexer::LexerLanguage lang) {
         const auto rel = fs::relative(file, config.entry.parent_path());
         cout << "── " << rel << " ["
@@ -221,7 +241,14 @@ int dev(string &pathToFile) {
             for (const auto &d : directives) cout << "    " << d << "\n";
             cout << "\n";
         }
-        parseAndDump(clean, lang, rel.string());
+        auto tree = Elica::Parsing::parseTokens(clean, lang);
+        if (tree) {
+            auto prog = Elica::Parsing::buildProgram(*tree, clean, rel.string());
+            nativePrograms.push_back(prog);
+            Elica::Parsing::printProgram(*prog, cout);
+        } else {
+            cout << "  [PARSE FAILED: " << rel << "]\n";
+        }
         cout << "\n";
     };
 
@@ -232,6 +259,15 @@ int dev(string &pathToFile) {
     }
     for (const auto &file : project->getNativeHeaderFiles()) {
         lexNative(file, Elica::Lexer::LexerLanguage::CPP);
+    }
+
+    // Phase 3.5: semantic analysis with the full picture — Ely AND native
+    // declarations share one code space (direct C++ calls, no extern).
+    if (!elyPrograms.empty() || !nativePrograms.empty()) {
+        cout << "── SEMANTIC ANALYSIS ──\n";
+        auto sem = Elica::Semantic::analyzeEly(elyPrograms, nativePrograms);
+        Elica::Semantic::printAnalysis(sem, cout);
+        cout << "\n";
     }
 
     // Stdlib resolution report (system <...> includes found via the toolchain).

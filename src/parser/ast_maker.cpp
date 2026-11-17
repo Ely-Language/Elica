@@ -62,6 +62,33 @@ std::string terminalLeafText(const ParseNode &n, const Ctx &ctx) {
     return leafText(*cur, ctx);
 }
 
+TypeRef toType(const ParseNode &n, const Ctx &ctx);
+
+std::string collectTemplateArgs(const ParseNode &n, const Ctx &ctx) {
+    std::string out;
+    auto walk = [&](auto &&self, const ParseNode &node) -> void {
+        if (node.children.empty()) return;
+        if (node.children.size() == 1) { self(self, *node.children[0]); return; }
+        if (node.children.size() == 3) {
+            self(self, *node.children[0]);
+            self(self, *node.children[2]);
+            return;
+        }
+        // template_arg leaf: type | num
+        if (node.symbol == "template_arg" && !node.children.empty()) {
+            if (!out.empty()) out += ", ";
+            const ParseNode &inner = *node.children[0];
+            if (inner.symbol == "type") {
+                out += toType(inner, ctx).toString();
+            } else if (inner.symbol == "num") {
+                out += leafText(inner, ctx);
+            }
+        }
+    };
+    walk(walk, n);
+    return out;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -70,7 +97,6 @@ std::string idPathText(const ParseNode &n, const Ctx &ctx) {
     if (n.children.empty()) return leafText(n, ctx);
     if (n.children.size() == 1) return idPathText(*n.children[0], ctx);
     if (n.children.size() < 3) {
-        // defensive: fold what we have rather than index out of range
         std::string s = idPathText(*n.children[0], ctx);
         return s;
     }
@@ -83,11 +109,28 @@ std::string idPathText(const ParseNode &n, const Ctx &ctx) {
 void collectTypeWord(TypeRef &t, const ParseNode &n, const Ctx &ctx) {
     if (n.children.empty()) { t.words.push_back(leafText(n, ctx)); return; }
     const std::string &s0 = n.children[0]->symbol;
-    if (s0 == "type_kw")        t.words.push_back(terminalLeafText(*n.children[0], ctx));
-    else if (s0 == "id_path")   t.words.push_back(idPathText(*n.children[0], ctx));
-    else if (s0 == "const")     t.isConst = true;
-    else if (s0 == "volatile")  t.words.push_back("volatile");
-    else if (s0 == "struct" || s0 == "enum" || s0 == "class" || s0 == "typename") {
+    
+    if (s0 == ".") {
+        t.words.push_back(".");
+        if (n.children.size() > 1) t.words.push_back(idPathText(*n.children[1], ctx));
+    } else if (s0 == "::") {
+        t.words.push_back("::");
+        if (n.children.size() > 1) t.words.push_back(idPathText(*n.children[1], ctx));
+    } else if (s0 == "type_kw") {
+        t.words.push_back(terminalLeafText(*n.children[0], ctx));
+    } else if (s0 == "id_path") {
+        if (n.children.size() >= 4 && n.children[1]->symbol == "<") {
+            std::string path = idPathText(*n.children[0], ctx);
+            std::string args = collectTemplateArgs(*n.children[2], ctx);
+            t.words.push_back(path + "<" + args + ">");
+        } else {
+            t.words.push_back(idPathText(*n.children[0], ctx));
+        }
+    } else if (s0 == "const") {
+        t.isConst = true;
+    } else if (s0 == "volatile") {
+        t.words.push_back("volatile");
+    } else if (s0 == "struct" || s0 == "enum" || s0 == "class" || s0 == "typename") {
         t.words.push_back(s0);
         t.words.push_back(idPathText(*n.children[1], ctx));
     } else {
@@ -119,6 +162,7 @@ TypeRef toType(const ParseNode &n, const Ctx &ctx) {
 // Expressions
 // ---------------------------------------------------------------------------
 
+std::vector<ExprPtr> interpParts(const std::string &raw, Lex::LexerLanguage lang);
 ExprPtr toExpr(const ParseNode &n, const Ctx &ctx);
 
 ExprPtr makeLeaf(Expr::Kind k, const ParseNode &n, const Ctx &ctx) {
@@ -156,12 +200,36 @@ ExprPtr toExpr(const ParseNode &n, const Ctx &ctx) {
             }
             return makeLeaf(isFlt ? Expr::FLT_LIT : Expr::INT_LIT, n, ctx);
         }
-        if (s == "str_lit")  return makeLeaf(Expr::STR_LIT, n, ctx);
+        if (s == "str_lit") {
+            if (n.tokenIndex >= 0 && n.tokenIndex < static_cast<int>(ctx.tokens.size())) {
+                const auto &t = ctx.tokens[static_cast<size_t>(n.tokenIndex)];
+                bool isF = false;
+                if (std::holds_alternative<Lex::CommonToken>(t.type)) {
+                    const auto ct = std::get<Lex::CommonToken>(t.type);
+                    isF = (ct == Lex::CommonToken::F_STR_LITERAL
+                        || ct == Lex::CommonToken::F_MULTILINE_STR_LITERAL);
+                }
+                if (isF) {
+                    auto e = Expr::make(Expr::INTERP_STR, t.lexeme, t.position);
+                    e->parts = interpParts(t.lexeme, Lex::LexerLanguage::ELY);
+                    return e;
+                }
+            }
+            return makeLeaf(Expr::STR_LIT, n, ctx);
+        }
         if (s == "char_lit") return makeLeaf(Expr::CHAR_LIT, n, ctx);
         if (s == "true" || s == "false") return makeLeaf(Expr::BOOL_LIT, n, ctx);
         if (s == "this") return makeLeaf(Expr::THIS, n, ctx);
         if (s == "nullptr") return makeLeaf(Expr::NULLPTR, n, ctx);
         if (s == "cpp_code") return makeLeaf(Expr::NATIVE, n, ctx);
+        if (s == "arg_item") {
+        if (n.children.size() == 1)
+            return toExpr(*n.children[0], ctx);
+            auto e = Expr::make(Expr::ASSIGN, "named=", ::Elica::Core::Position());
+            e->target = makeLeaf(Expr::IDENT, *n.children[0], ctx);
+            e->value  = toExpr(*n.children[2], ctx);
+            return e;
+        }
         return makeLeaf(Expr::IDENT, n, ctx);
     }
 
@@ -170,6 +238,14 @@ ExprPtr toExpr(const ParseNode &n, const Ctx &ctx) {
     // ------- wrapper / composite rules ---------------------------------------
     if (s == "expr") return toExpr(*C.expect(n, 0), ctx);
 
+    if (s == "arg_item") {
+        if (n.children.size() == 1) return toExpr(*n.children[0], ctx);   // позиционный
+        // P1.4: arg_item -> id '=' expr
+        auto e = Expr::make(Expr::ASSIGN, "named", ::Elica::Core::Position());
+        e->target = makeLeaf(Expr::IDENT, *n.children[0], ctx);
+        e->value  = toExpr  (*n.children[2], ctx);
+        return e;
+    }
     if (s == "assign_expr") {
         if (n.children.size() == 1) return toExpr(*n.children[0], ctx);
         auto e = Expr::make(Expr::ASSIGN, opText(*n.children[1]), ::Elica::Core::Position());
@@ -213,11 +289,25 @@ ExprPtr toExpr(const ParseNode &n, const Ctx &ctx) {
     if (s == "new_expr") {
         auto e = Expr::make(Expr::NEW_EXPR, "new", ::Elica::Core::Position());
         const ParseNode &body = *C.expect(n, 1);     // new_body
+        // P0.4: `new Foo(args)` / `new a.b.Ctor(args)` via id_path
+        if (body.children[0]->symbol == "id_path") {
+            TypeRef t;
+            t.words.push_back(idPathText(*body.children[0], ctx));
+            e->newType = std::move(t);
+            if (body.children.size() >= 4) e->args = toArgs(*body.children[2], ctx);
+            return e;
+        }
         if (body.children[0]->symbol == "type") {
             e->newType = toType(*body.children[0], ctx);
             const ParseNode *arr = C.child(body, 1);
             if (arr && arr->children.size() == 3) { e->newBrackets = true; e->arraySize = toExpr(*arr->children[1], ctx); }
             else if (arr && arr->children.size() == 2) { e->newBrackets = true; }
+        } else if (body.children[0]->symbol == "id_path") {
+            // new id_path(args) — constructor call with qualified name
+            e->target = Expr::make(Expr::IDENT, idPathText(*body.children[0], ctx), ::Elica::Core::Position());
+            if (body.children.size() == 4) {
+                e->args = toArgs(*body.children[2], ctx);
+            }
         } else {
             e->target = toExpr(*body.children[0], ctx);
             if (body.children.size() == 4) {           // primary ( args )
@@ -257,6 +347,13 @@ ExprPtr toExpr(const ParseNode &n, const Ctx &ctx) {
             e->index = toExpr(*n.children[2], ctx);
             return e;
         }
+        if (n.children.size() == 4 && op == "?") {          // postfix ? . id
+            auto e = Expr::make(Expr::MEMBER, "?.", ::Elica::Core::Position());
+            e->base      = toExpr(*n.children[0], ctx);
+            e->isSafeNav = true;
+            e->members.push_back(leafText(*n.children[3], ctx));
+            return e;
+        }
         if (n.children.size() == 3 && (op == "." || op == "->" || op == "::")) {
             auto e = Expr::make(Expr::MEMBER, op, ::Elica::Core::Position());
             e->base = toExpr(*n.children[0], ctx);
@@ -270,12 +367,36 @@ ExprPtr toExpr(const ParseNode &n, const Ctx &ctx) {
             e->isPrefix = false;
             return e;
         }
+        if (n.children.size() == 7) {
+            auto e = Expr::make(Expr::CALL, "call", ::Elica::Core::Position());
+            auto callee = toExpr(*n.children[0], ctx);
+            if (callee->kind == Expr::IDENT) {
+                std::string targs = collectTemplateArgs(*n.children[2], ctx);
+                callee->text = callee->text + "<" + targs + ">";
+            }
+            e->callee = callee;
+            e->args = toArgs(*n.children[5], ctx);
+            return e;
+        }
         return toExpr(*n.children[0], ctx);
     }
     if (s == "primary") {
         if (n.children.size() == 3) return toExpr(*n.children[1], ctx);   // ( expr )
+        
+        // ::id_path — absolute scope resolution in C/C++ (e.g. ::std::string)
+            if (n.children.size() == 2 && n.children[0]->symbol == "::") {
+            std::string path = idPathText(*n.children[1], ctx);
+            return Expr::make(Expr::IDENT, "::" + path, ::Elica::Core::Position());
+        }
+        
+        // .id_path — relative path in Ely (e.g. .str, .__YS.ystr)
+        if (n.children.size() == 2 && n.children[0]->symbol == ".") {
+            std::string path = idPathText(*n.children[1], ctx);
+            return Expr::make(Expr::IDENT, "." + path, ::Elica::Core::Position());
+        }
+        
         if (n.children.size() == 7 && n.children[1]->symbol == "<") {
-            // cast like static_cast<int>(x): [id, <, type, >, (, expr, )]
+            // cast like static_cast<int>(x)
             auto e = Expr::make(Expr::CALL, "cast", ::Elica::Core::Position());
             e->callee = Expr::make(Expr::IDENT, leafText(*n.children[0], ctx), ::Elica::Core::Position());
             e->target = std::make_shared<Expr>();
@@ -475,10 +596,18 @@ std::vector<StmtPtr> toStmts(const ParseNode &n, const Ctx &ctx) {
         }
         return {st};
     }
+    if (s == "for_in_stmt") {
+        auto st = makeStmt(Stmt::FOR_IN, n);
+        st->type = toType(*ctx.expect(n, 2), ctx);
+        st->name = leafText(*ctx.expect(n, 3), ctx);
+        st->expr = toExpr  (*ctx.expect(n, 5), ctx);
+        st->body.push_back(wrapBlock(toStmts(*ctx.expect(n, 7), ctx)));
+        return {st};
+    }
     if (s == "for_stmt") {
         auto st = makeStmt(Stmt::FOR, n);
         // for ( for_init expr_opt ; expr_opt ) stmt
-        const ParseNode *initNode = ctx.child(n, 2);   // for_init
+        const ParseNode *initNode = ctx.child(n, 2);
         if (initNode && !initNode->children.empty()) {
             const ParseNode *inner = initNode->children[0].get();
             if (inner->symbol == "var_decl") {
@@ -595,6 +724,7 @@ std::vector<std::pair<TypeRef, std::string>> toParams(const ParseNode &n, const 
     if (n.children[0]->symbol == "void") return out;
     // walk the comma-list
     auto collect = [&](auto &&self, const ParseNode &node) -> void {
+        if (node.symbol == "c_param" || node.symbol == "param") { addParam(node); return; }
         if (node.children.empty()) return;
         if (node.children.size() == 1) { self(self, *node.children[0]); return; }
         if (node.children.size() == 3) {
@@ -602,8 +732,6 @@ std::vector<std::pair<TypeRef, std::string>> toParams(const ParseNode &n, const 
             self(self, *node.children[2]);
             return;
         }
-        // leaf param rule
-        addParam(node);
     };
     collect(collect, n);
     return out;
@@ -671,26 +799,72 @@ std::vector<DeclPtr> toDecls(const ParseNode &n, const Ctx &ctx) {
         }
         return out;
     }
+    // P0.1: Ely field declaration `[mods] var_decl` (wait/unwait/...)
+    if (s == "ely_var_decl") {
+        const ParseNode *mods = ctx.child(n, 0);
+        const ParseNode *vd = ctx.child(n, 1);
+        std::vector<DeclPtr> result;
+        if (vd) result = toDecls(*vd, ctx);
+        if (mods) {
+            auto modList = collectMods(*mods, ctx);
+            for (auto &d : result) {
+                d->modifiers.insert(d->modifiers.end(), modList.begin(), modList.end());
+            }
+        }
+        return result;
+    }
+    if (s == "ely_var_decl_list") {
+        if (n.children.size() >= 2) {
+            auto prev = toDecls(*n.children[0], ctx);
+            auto tail = toDecls(*n.children[1], ctx);
+            out.reserve(prev.size() + tail.size());
+            out.insert(out.end(), prev.begin(), prev.end());
+            out.insert(out.end(), tail.begin(), tail.end());
+        }
+        return out;
+    }
 
     // ---- functions ----------------------------------------------------------
     if (s == "ely_func_decl" || s == "c_func_decl") {
         auto d = std::make_shared<Decl>();
         d->kind = Decl::FUNCTION;
         const bool ely = (s == "ely_func_decl");
-        // ely: [mods, type, func, id, ( , param_list, ), block]
-        // c  : [mods, type, id, ( , c_param_list, ), block]
         d->isElyFuncStyle = ely;
         d->modifiers = collectMods(*ctx.expect(n, 0), ctx);
         d->ret = toType(*ctx.expect(n, 1), ctx);
-        const ParseNode *nameNode = ctx.expect(n, ely ? 3 : 2);
+        
+        size_t nameIdx = ely ? 3 : 2;
+        size_t paramsIdx = ely ? 6 : 4;  // сдвинуто из-за ely_template_params
+        size_t bodyIdx = ely ? 8 : 6;
+        
+        const ParseNode *nameNode = ctx.expect(n, nameIdx);
         d->name = leafText(*nameNode, ctx);
-        const ParseNode *pl = ctx.child(n, ely ? 5 : 4);
+        
+        // Extract template params for Ely
+        if (ely) {
+            const ParseNode *tpl = ctx.child(n, 4);  // ely_template_params
+            if (tpl && !tpl->children.empty()) {
+                const ParseNode &list = *tpl->children[1];  // template_param_list
+                auto collect = [&](auto &&self, const ParseNode &node) -> void {
+                    if (node.children.empty()) return;
+                    if (node.children.size() == 1) { self(self, *node.children[0]); return; }
+                    if (node.children.size() == 3) { self(self, *node.children[0]); self(self, *node.children[2]); return; }
+                    const ParseNode *idNode = ctx.child(node, 0);
+                    if (idNode && idNode->symbol == "id") {
+                        d->templateParams.push_back(leafText(*idNode, ctx));
+                    }
+                };
+                collect(collect, list);
+            }
+        }
+        
+        const ParseNode *pl = ctx.child(n, paramsIdx);
         if (pl) {
             std::vector<ExprPtr> defaults;
             d->params = toParams(*pl, ctx, defaults);
             d->defaultArgs = std::move(defaults);
         }
-        const ParseNode *bodyNode = ctx.child(n, ely ? 7 : 6);
+        const ParseNode *bodyNode = ctx.child(n, bodyIdx);
         if (bodyNode && bodyNode->symbol == "block") d->body = wrapBlock(toStmts(*bodyNode, ctx));
         out.push_back(d);
         return out;
@@ -751,7 +925,44 @@ std::vector<DeclPtr> toDecls(const ParseNode &n, const Ctx &ctx) {
         d->kind = Decl::CLASS;
         d->modifiers = collectMods(*ctx.expect(n, 0), ctx);
         d->name = leafText(*ctx.expect(n, 2), ctx);
-        const ParseNode *members = ctx.child(n, 4);
+        
+        // Extract template params
+        const ParseNode *tpl = ctx.child(n, 3);  // ely_template_params
+        if (tpl && !tpl->children.empty()) {
+            const ParseNode &list = *tpl->children[1];
+            auto collect = [&](auto &&self, const ParseNode &node) -> void {
+                if (node.children.empty()) return;
+                if (node.children.size() == 1) { self(self, *node.children[0]); return; }
+                if (node.children.size() == 3) { self(self, *node.children[0]); self(self, *node.children[2]); return; }
+                const ParseNode *idNode = ctx.child(node, 0);
+                if (idNode && idNode->symbol == "id") {
+                    d->templateParams.push_back(leafText(*idNode, ctx));
+                }
+            };
+            collect(collect, list);
+        }
+        
+        // ely_class_bases at index 4 (сдвинуто)
+        const ParseNode *bases = ctx.child(n, 4);
+        if (bases && !bases->children.empty()) {
+            const ParseNode *bl = ctx.expect(*bases, 1);
+            auto collectBases = [&](auto &&self, const ParseNode &node) -> void {
+                if (node.symbol == "ely_base_list") {
+                    if (node.children.size() == 3) { self(self, *node.children[0]); self(self, *node.children[2]); return; }
+                    self(self, *node.children[0]);
+                    return;
+                }
+                if (node.symbol == "ely_base") {
+                    const ParseNode *name = node.children.back().get();
+                    std::string b = (name->symbol == "id_path") ? idPathText(*name, ctx) : leafText(*name, ctx);
+                    if (!b.empty()) d->bases.push_back(b);
+                }
+            };
+            collectBases(collectBases, *bl);
+            if (!d->bases.empty()) d->baseName = d->bases.front();
+        }
+        
+        const ParseNode *members = ctx.child(n, 6);  // сдвинуто из-за template params
         if (members) d->members = toDecls(*members, ctx);
         out.push_back(d);
         return out;
@@ -779,8 +990,30 @@ std::vector<DeclPtr> toDecls(const ParseNode &n, const Ctx &ctx) {
             d->name = leafText(*ctx.expect(head, 2), ctx);
             const ParseNode *bases = ctx.child(head, 3);
             if (bases && !bases->children.empty()) {
-                const ParseNode &bl = *ctx.expect(*bases, 1);
-                d->baseName = idPathText(*bl.children[bl.children.size() - 1], ctx);
+                // collect ALL direct bases (base_list -> base_list ',' base | base)
+                const ParseNode *bl = ctx.expect(*bases, 1);
+                auto collectBases = [&](auto &&self, const ParseNode &node) -> void {
+                    if (node.children.empty()) return;
+                    if (node.symbol == "base_list") {
+                        if (node.children.size() == 3) {       // base_list , base
+                            self(self, *node.children[0]);
+                            self(self, *node.children[2]);
+                            return;
+                        }
+                        self(self, *node.children[0]);
+                        return;
+                    }
+                    if (node.symbol == "base") {
+                        // ['public'|'protected'|'private'|'virtual'] id_path
+                        const ParseNode *name = node.children.back().get();
+                        std::string b = (name->symbol == "id_path")
+                            ? idPathText(*name, ctx)
+                            : leafText(*name, ctx);
+                        if (!b.empty()) d->bases.push_back(b);
+                    }
+                };
+                collectBases(collectBases, *bl);
+                if (!d->bases.empty()) d->baseName = d->bases.front();   // legacy
             }
             const ParseNode *members = ctx.child(n, 2);
             if (members) d->members = toDecls(*members, ctx);
@@ -793,7 +1026,84 @@ std::vector<DeclPtr> toDecls(const ParseNode &n, const Ctx &ctx) {
         return out;
     }
 
+    // ---- function and classes generic params -------------------------------
+
+    if (s == "ely_template_params") {
+        std::vector<std::string> params;    
+        if (n.children.size() == 3) {  // < template_param_list >
+            const ParseNode &list = *n.children[1];
+            auto collect = [&](auto &&self, const ParseNode &node) -> void {
+                if (node.children.empty()) return;
+                if (node.children.size() == 1) {
+                    self(self, *node.children[0]);
+                    return;
+                }
+                if (node.children.size() == 3) {  // list , param
+                    self(self, *node.children[0]);
+                    self(self, *node.children[2]);
+                    return;
+                }
+                // template_param leaf
+                const ParseNode *idNode = ctx.child(node, 0);
+                if (idNode && idNode->symbol == "id") {
+                    params.push_back(leafText(*idNode, ctx));
+                }
+            };
+            collect(collect, list);
+        }
+        // Store params in a thread-local or return via out param
+        // For now, we'll extract them directly in ely_func_decl/ely_class_decl
+        return {};  // placeholder — actual extraction happens inline
+    }
+
     // ---- namespace / enum / typedef / template / extern ---------------------
+    if (s == "ely_namespace_decl") {
+        auto d = std::make_shared<Decl>();
+        d->kind = Decl::NAMESPACE;
+        if (n.children.size() >= 4 && n.children[1]->symbol == "id_path") {
+            // namespace id_path { ely_top_list }
+            d->name = idPathText(*n.children[1], ctx);
+            const ParseNode *body = ctx.child(n, 3);
+            if (body) d->nested = toDecls(*body, ctx);
+        } else {
+            // namespace id = id_path ;
+            d->name = leafText(*ctx.expect(n, 1), ctx);
+            d->modulePath = leafText(*ctx.expect(n, 3), ctx);
+        }
+        out.push_back(d);
+        return out;
+    }
+    if (s == "ely_template_decl") {
+        auto d = std::make_shared<Decl>();
+        d->kind = Decl::TEMPLATE;
+        const ParseNode *params = ctx.child(n, 2);          // ely_template_params
+        if (params) {
+            auto collect = [&](auto &&self, const ParseNode &node) -> void {
+                if (node.children.empty()) return;
+                if (node.symbol == "ely_template_params") {
+                    if (node.children.size() == 3) {
+                        self(self, *node.children[0]);
+                        self(self, *node.children[2]);
+                        return;
+                    }
+                    self(self, *node.children[0]);
+                    return;
+                }
+                if (node.symbol == "ely_template_param") {
+                    const ParseNode *last = node.children.back().get();
+                    if (last && last->symbol == "id" && last->children.empty())
+                        d->templateParams.push_back(leafText(*last, ctx));
+                    else if (last)
+                        d->templateParams.push_back(leafText(*last, ctx));
+                }
+            };
+            collect(collect, *params);
+        }
+        const ParseNode *inner = ctx.child(n, 4);
+        if (inner) d->nested = toDecls(*inner, ctx);
+        out.push_back(d);
+        return out;
+    }
     if (s == "namespace_decl") {
         auto d = std::make_shared<Decl>();
         d->kind = Decl::NAMESPACE;
@@ -815,7 +1125,23 @@ std::vector<DeclPtr> toDecls(const ParseNode &n, const Ctx &ctx) {
         d->kind = Decl::TYPEDEF;
         d->aliasType = toType(*ctx.expect(n, 1), ctx);
         const ParseNode *decl = ctx.expect(n, 2);      // init_declarator
-        const ParseNode *idNode = ctx.child(*decl, 1);
+        // init_declarator: ptrs id ... | ptrs ( * id ) ( params ) cv | ...
+        const ParseNode *idNode = nullptr;
+        if (decl && !decl->children.empty()) {
+            // search the declarator tree for the id that is the typedef name
+            std::function<const ParseNode*(const ParseNode&)> findName =
+                [&](const ParseNode &node) -> const ParseNode* {
+                if (node.children.empty()) {
+                    return node.symbol == "id" ? &node : nullptr;
+                }
+                if (node.symbol == "id") return &node;
+                for (const auto &ch : node.children) {
+                    if (const ParseNode *r = findName(*ch)) return r;
+                }
+                return nullptr;
+            };
+            idNode = findName(*decl);
+        }
         d->name = idNode ? leafText(*idNode, ctx) : "?";
         out.push_back(d);
         return out;
@@ -941,29 +1267,76 @@ std::vector<Lex::Token> extractDirectives(
 // Parse driver / program building
 // ===========================================================================
 
-std::shared_ptr<Earley::ParseNode> parseTokens(
-    const std::vector<Lex::Token> &tokens,
-    Lex::LexerLanguage lang) {
-    // The lexer appends an END_OF_FILE sentinel; the Earley parser works on
-    // real tokens only (completion happens past the last real token).
+namespace {
+// P1.5: parse an interpolation `{expr}` fragment (f-strings). We lex the raw
+// text with the Ely lexer and parse it against the shared `expr` rule.
+ExprPtr parseElyInterpolated(const std::string &frag, Lex::LexerLanguage lang) {
+    auto simple = Expr::make(Expr::RAW, frag, ::Elica::Core::Position());
+    if (frag.empty()) return simple;
+
+    Lex::Lexer lx(frag, lang);
+    auto toks = lx.tokenize();
     std::vector<Lex::Token> input;
-    input.reserve(tokens.size());
-    for (const auto &t : tokens) {
+    input.reserve(toks.size());
+    for (const auto &t : toks) {
         bool isEof = std::holds_alternative<Lex::CommonToken>(t.type)
             && std::get<Lex::CommonToken>(t.type) == Lex::CommonToken::END_OF_FILE;
-        if (isEof) break;   // EOF is the last token
+        if (isEof) break;
         input.push_back(t);
     }
+    if (input.empty()) return simple;
 
-    const Earley::Grammar *g = nullptr;
-    Earley::Grammar ely, c, cpp;
-    if (lang == Lex::LexerLanguage::ELY) { ely = buildElyGrammar(); g = &ely; }
-    else if (lang == Lex::LexerLanguage::C) { c = buildCGrammar(); g = &c; }
-    else { cpp = buildCppGrammar(); g = &cpp; }
+    // Build the right grammar and re-target the start symbol onto `expr`.
+    Earley::Grammar g;
+    switch (lang) {
+        case Lex::LexerLanguage::ELY: g = buildElyGrammar(); break;
+        case Lex::LexerLanguage::C:   g = buildCGrammar();  break;
+        default:                      g = buildCppGrammar(); break;
+    }
+    g.start = "expr";
 
     Earley::EarleyParser p;
-    return p.parse(input, *g).value_or(nullptr);
+    auto tree = p.parse(input, g);
+    if (!tree) return simple;
+    const auto &root = *tree;
+    if (!root || root->children.empty()) return simple;
+    Ctx cctx{input};
+    return toExpr(*root->children[0], cctx);
 }
+
+// split "hello {name}!" into ["hello ", Name, "!"] — recursive, brace-bounded.
+std::vector<ExprPtr> interpParts(const std::string &raw, Lex::LexerLanguage lang) {
+    std::vector<ExprPtr> parts;
+    std::string lit;
+    size_t i = 0;
+    auto flush = [&] {
+        if (!lit.empty()) {
+            auto s = Expr::make(Expr::STR_LIT, lit, ::Elica::Core::Position());
+            parts.push_back(s);
+            lit.clear();
+        }
+    };
+    while (i < raw.size()) {
+        if (raw[i] == '{') {
+            // find matching '}' (brace-bounded; nested braces supported)
+            int depth = 0; size_t j = i;
+            for (; j < raw.size(); ++j) {
+                if (raw[j] == '{') depth++;
+                else if (raw[j] == '}') { depth--; if (depth == 0) break; }
+            }
+            if (depth == 0 && j < raw.size()) {
+                flush();
+                parts.push_back(parseElyInterpolated(raw.substr(i+1, j-i-1), lang));
+                i = j + 1;
+                continue;
+            }
+        }
+        lit.push_back(raw[i++]);
+    }
+    flush();
+    return parts;
+}
+} // namespace
 
 std::shared_ptr<Program> buildProgram(
     const Earley::ParseNode &tree,
@@ -1019,6 +1392,14 @@ std::string exprStr(const Expr &e) {
         case Expr::INT_LIT: case Expr::FLT_LIT: case Expr::BOOL_LIT:
         case Expr::IDENT: return e.text;
         case Expr::CHAR_LIT: return e.text == "\0" ? "'\\0'" : "'" + e.text + "'";
+        case Expr::INTERP_STR: {
+            std::string s = "f\"";
+            for (const auto &p : e.parts) {
+                if (p->kind == Expr::STR_LIT) s += p->text;
+                else s += "{" + exprStr(*p) + "}";
+            }
+            return s + "\"";
+        }
         case Expr::STR_LIT: return "\"" + e.text + "\"";
         case Expr::THIS: return "this";
         case Expr::NULLPTR: return "nullptr";
@@ -1029,13 +1410,18 @@ std::string exprStr(const Expr &e) {
                                                      : "delete " + exprStr(*e.lhs);
             if (op == "sizeof") return "sizeof(" + typeToString(e.newType) + ")";
             return op + exprStr(*e.lhs);
-        case Expr::ASSIGN: return exprStr(*e.target) + " " + op + " " + exprStr(*e.value);
+        case Expr::ASSIGN:
+            if (op == "named") return exprStr(*e.target) + "=" + exprStr(*e.value);
+            return exprStr(*e.target) + " " + op + " " + exprStr(*e.value);
         case Expr::TERNARY: return "(" + exprStr(*e.cond) + " ? " + exprStr(*e.thenBranch) + " : " + exprStr(*e.elseBranch) + ")";
         case Expr::CALL: return exprStr(*e.callee) + "(" + joinArgs(e.args) + ")";
         case Expr::INDEX: return exprStr(*e.base) + "[" + exprStr(*e.index) + "]";
         case Expr::MEMBER: {
             std::string s = exprStr(*e.base);
-            for (const auto &m : e.members) s += (e.isArrow ? "->" : (op == "::" ? "::" : ".")) + m;
+            const char *sep = e.isSafeNav ? "?."
+                            : e.isArrow   ? "->"
+                            : (op == "::") ? "::" : ".";
+            for (const auto &m : e.members) s += std::string(sep) + m;
             return s;
         }
         case Expr::INC_DEC: return e.isPrefix ? op + exprStr(*e.lhs) : exprStr(*e.lhs) + op;
@@ -1096,6 +1482,12 @@ void printStmt(std::ostream &os, const Stmt &s, int depth) {
         case Stmt::WHILE:
             os << pad << "while (";
             if (s.cond) printExpr(os, *s.cond);
+            os << ") ";
+            printStmt(os, *s.body[0], depth);
+            return;
+        case Stmt::FOR_IN:
+            os << pad << "for (" << typeToString(s.type) << " " << s.name << " in ";
+            if (s.expr) printExpr(os, *s.expr);
             os << ") ";
             printStmt(os, *s.body[0], depth);
             return;

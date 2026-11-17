@@ -38,7 +38,7 @@ std::string tokenTypeName(const Token &token) {
             E(KW_USHORT) E(KW_MORE) E(KW_UMORE) E(KW_FLT) E(KW_DOUBLE)
             E(KW_NOISED) E(KW_STR) E(KW_ATOM) E(KW_CHAR) E(KW_BOOL)
             E(KW_VOID) E(KW_SENTINEL) E(KW_ANY) E(KW_FUNC) E(KW_CLASS)
-            E(KW_STRUCT) E(KW_cCode) E(KW_cppCode) E(KW_PUBLIC)
+            E(KW_STRUCT) E(KW_cCode) E(KW_cppCode) E(KW_NAMESPACE) E(KW_PUBLIC)
             E(KW_PRIVATE) E(KW_MINE) E(KW_STATIC) E(KW_COPA) E(KW_CONST)
             E(KW_NOCOPA) E(KW_SEALED) E(KW_ABSTRACT) E(KW_WAIT)
             E(KW_UNWAIT) E(KW_STACK) E(KW_HEAP) E(KW_IF) E(KW_ELSE)
@@ -193,6 +193,7 @@ const unordered_map<string, TokenType> &Lexer::getElyKeywords() {
         {"struct", static_cast<TokenType>(ElyToken::KW_STRUCT)},
         {"cCode", static_cast<TokenType>(ElyToken::KW_cCode)},
         {"cppCode", static_cast<TokenType>(ElyToken::KW_cppCode)},
+        {"namespace", static_cast<TokenType>(ElyToken::KW_NAMESPACE)},
 
         // Modifiers
         {"public", static_cast<TokenType>(ElyToken::KW_PUBLIC)},

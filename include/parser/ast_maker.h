@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "lexer/token.h"
+#include "lexer/lexer.h"
 #include "parser/ast_nodes.h"
 #include "parser/earley_core.h"
 

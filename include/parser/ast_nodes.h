@@ -55,11 +55,17 @@ struct Expr {
         IDENT, THIS, NULLPTR,
         BINARY, UNARY, ASSIGN, TERNARY,
         CALL, INDEX, MEMBER, INC_DEC, NEW_EXPR, SIZEOF, NATIVE,
-        RAW                                    // resilient fallback (C/C++)
+        RAW,                                    // resilient fallback (C/C++)
+        INTERP,                                 // f"...{expr}..." string interpolation
+        DICT,                                   // {key: value, ...} — JSON-style
+        ARRAY,
+        INTERP_STR                                 // {v1, v2, ...} — pairless collection
     } kind;
 
     // literals / identifiers
     std::string text;
+    // interpolation
+    std::vector<ExprPtr> parts;
 
     // structure
     std::string op;
@@ -71,11 +77,17 @@ struct Expr {
 
     bool isPrefix = true;                      // ++/-- prefix or postfix
     bool isArrow  = false;                     // a->b vs a.b
+    bool isSafeNav = false;                    // a?.b
 
     // new / sizeof
     TypeRef newType;                           // `new Foo(...)` / `sizeof(int)`
     bool newBrackets = false;                  // `new int[10]`
     std::shared_ptr<Expr> arraySize;           // `new int[N]`
+
+    // interpolation parts (INTERP): alternating string chunks and {expr} nodes
+    std::vector<std::shared_ptr<Expr>> parts;
+    // dict pairs (DICT): {key: value}
+    std::vector<std::pair<std::shared_ptr<Expr>, std::shared_ptr<Expr>>> pairs;
 
     ::Elica::Core::Position pos;
 
@@ -93,9 +105,9 @@ struct Expr {
 
 struct Stmt {
     enum Kind {
-        BLOCK, EXPR_STMT, VAR_DECL, IF, WHILE, FOR, RETURN,
-        BREAK, CONTINUE, EMPTY, NATIVE_CODE,
-        DO, SWITCH, GOTO, LABEL, RAW          // C/C++ resilient statements
+        BLOCK, EXPR_STMT, VAR_DECL, IF, WHILE, FOR, FOR_IN,
+        RETURN, BREAK, CONTINUE, EMPTY, NATIVE_CODE,
+        DO, SWITCH, GOTO, LABEL, RAW
     } kind;
     ::Elica::Core::Position pos;
 
@@ -146,7 +158,8 @@ struct Decl {
 
     // class/struct
     bool isStruct = false;
-    std::string baseName;                                  // `: public Base`
+    std::string baseName;                                  // `: public Base` (legacy single)
+    std::vector<std::string> bases;                        // all direct bases, e.g. {"Base1","Base2"}
     std::vector<std::shared_ptr<Decl>> members;
 
     // using / include
